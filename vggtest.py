@@ -2,7 +2,9 @@
 from keras.preprocessing.image import load_img 
 from keras.applications.vgg16 import preprocess_input 
 from keras.applications.vgg16 import VGG16 
+from keras.applications.resnet_v2 import ResNet101V2
 from keras.models import Model
+
 import os
 import argparse
 from matplotlib.pyplot import plot
@@ -12,6 +14,13 @@ import umap
 import umap.plot
 import plotly.express as px
 from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+
+
+
 
 filepath= "C:/Users/momok/Desktop/Bachelorarbeit/dev/results/results"
 groundtruthpath = "C:/Users/momok/Desktop/Bachelorarbeit/dev/UNet/unet/data/membrane/train/label"
@@ -46,18 +55,20 @@ kernelinitializers = [
     "he_uniform"
 ]
 
-identifiers=[]
-#get all run_identifiers
-for bs in batchsizes:
-    for lf in lossfunctions:
-        for opt in optimizers:
-            for tf in topologyfactors:
-                for ki in kernelinitializers:
-                    identifiers.append('bs{0}-lf{1}-opt{2}-tf{3}-ki{4}'.format(bs,lf,opt,tf,ki))
+def get_identifiers():
+    identifiers=[]
+    #get all run_identifiers
+    for bs in batchsizes:
+        for lf in lossfunctions:
+            for opt in optimizers:
+                for tf in topologyfactors:
+                    for ki in kernelinitializers:
+                        identifiers.append('bs{0}-lf{1}-opt{2}-tf{3}-ki{4}'.format(bs,lf,opt,tf,ki))
+    return identifiers
 
 
 def extract_features(file, model):
-    img = load_img(file, target_size=(224,224))
+    img = load_img(file, target_size=(224,224), interpolation="bicubic")
     img = np.array(img) 
     reshaped_img = img.reshape(1,224,224,3) 
     imgx = preprocess_input(reshaped_img)
@@ -69,17 +80,22 @@ def reduce_dimensionality(features,method ="umap"):
     plotdatalist = []
 
     if method == "umap":
-        umap_2d = umap.UMAP(random_state=42)
+        umap_2d = umap.UMAP()
         umap_proj_2d = umap_2d.fit_transform(features)
         plotdatalist = umap_proj_2d.tolist()
     elif method =="pca":
         pca = PCA(n_components=2)
         pca_proj_2d = pca.fit_transform(features)
         plotdatalist = pca_proj_2d.tolist()
+    elif method=="tsne":
+        tsne = TSNE()
+        tsne_proj_2d = tsne.fit_transform(features)
+        plotdatalist = tsne_proj_2d.tolist()
+
     else: 
-        raise ValueError("parameter 'method' has to be either 'umap' or 'pca'")
+        raise ValueError("parameter 'method' is not valid'")
 
-
+    identifiers = get_identifiers()
 
     for i in range(len(identifiers)):   
         split_ids = identifiers[i].split("-")
@@ -101,17 +117,19 @@ def reduce_dimensionality(features,method ="umap"):
     return plotdatalist
 
 parser = argparse.ArgumentParser(description='define which picture should be analyzed')
-parser.add_argument('-id' , metavar='id', nargs='?', default=18, const=18, help='id')
+parser.add_argument('-id' , metavar='id', nargs='?', default=25, const=25, help='id')
 args = parser.parse_args()
 
 picture_id = str(args.id)
-print("picture_id: " + picture_id)
+
+#print("picture_id: " + picture_id)
 model = VGG16(weights="imagenet")
 #remove last layers to access featurevectors
 model = Model(inputs = model.inputs, outputs = model.layers[-2].output)
 
 feature_vectors = []
 
+identifiers = get_identifiers()
 #extract features for every run
 for id in identifiers:
     vector = extract_features(os.path.join(filepath, id, picture_id +"_predict.png"),model)
@@ -123,11 +141,12 @@ truth_vector = extract_features(os.path.join(groundtruthpath, picture_id + ".png
 feature_vectors.append(truth_vector)
 feature_vectors_np = np.array(feature_vectors)
 
-data_to_plot = reduce_dimensionality(feature_vectors_np, "umap")
+data_to_plot = reduce_dimensionality(feature_vectors_np, "tsne")
 
 
 plotdatadf = pd.DataFrame(data_to_plot, columns=["x","y","run_id","batchsize","lossfunction","optimizer","topologyfactor","kernelinitializer"])
-fig = px.scatter(plotdatadf,x="x",y="y",color="lossfunction", size="batchsize", symbol="optimizer", text="kernelinitializer")
+fig = px.scatter(plotdatadf,x="x",y="y",color="lossfunction", size="batchsize", symbol="optimizer", text="run_id")
 fig.show()
 
 plotdatadf.to_json(orient ="index", path_or_buf= os.path.join(outputpath, picture_id + ".json"))
+
