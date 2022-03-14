@@ -75,8 +75,8 @@ def extract_features(file, model):
     img = load_img(file, target_size=(224,224), interpolation="bicubic",color_mode="grayscale")
     img = np.array(img)
     #check if image is only one color (faulty run)
-    if np.all(img == img[0]):
-        print(file)
+    #if np.all(img == img[0]):
+        #print(file)
     reshaped_img = img.reshape(1,224,224) 
     #add 2 fake color channels to fit the model requirements
     rgb_img = np.repeat(reshaped_img[..., np.newaxis], 3, -1)
@@ -91,7 +91,7 @@ def reduce_dimensionality(features, dimensions,method = "umap"):
 
 
     if dimensions == 3 and method == "umap":
-        umap_3d = umap.UMAP(n_components=3)
+        umap_3d = umap.UMAP(n_components=3, random_state=42)
         umap_proj_3d = umap_3d.fit_transform(features)
         plotdatalist = umap_proj_3d.tolist()
     elif method == "umap":
@@ -140,17 +140,19 @@ def reduce_dimensionality(features, dimensions,method = "umap"):
 
 parser = argparse.ArgumentParser(description='set paramaters for feature extraction and dimensionality reduction')
 parser.add_argument('-id' , metavar='id', nargs='?', default=25, const=25, help='picture id')
-parser.add_argument('-d', '--dimensions', metavar='dimensions', nargs='?', default=2, const=2, help='data gets reduced to d dimensions. 3d is only possible in combination with method umap')
-parser.add_argument('-m', '--method' , metavar='method', nargs='?', default="umap", const="umap", help='method for dimensionality reduction. Options: umap, tsne, pca')
+parser.add_argument('-d', '--dimensions', metavar='dimensions', type=int, nargs='?', default=3, const=3, help='data gets reduced to d dimensions. 3d is only possible in combination with method umap')
+parser.add_argument('-m', '--method' , metavar='method', type=str, nargs='?', default="umap", const="umap", help='method for dimensionality reduction. Options: umap, tsne, pca')
 args = parser.parse_args()
-print(args.method)
-print(args.dimensions)
+
 picture_id = str(args.id)
+dimensions = args.dimensions
+method = args.method
+
 
 model = VGG16(weights="imagenet")
 #remove last layers to access featurevectors
 
-model = Model(inputs = model.inputs, outputs = model.layers[1].output)
+model = Model(inputs = model.inputs, outputs = model.layers[-2].output)
 
 feature_vectors = []
 
@@ -166,9 +168,7 @@ truth_vector = extract_features(os.path.join(groundtruthpath, picture_id + ".png
 feature_vectors.append(truth_vector)
 feature_vectors_np = np.array(feature_vectors)
 
-dimensions = 3
-
-data_to_plot = reduce_dimensionality(feature_vectors_np, dimensions, method = "umap")
+data_to_plot = reduce_dimensionality(feature_vectors_np, dimensions, method = method)
  
 print(data_to_plot[len(identifiers)])
 
