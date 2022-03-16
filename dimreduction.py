@@ -25,7 +25,7 @@ import matplotlib.image as mpimg
 
 filepath= "C:/Users/momok/Desktop/Bachelorarbeit/dev/results/results2"
 groundtruthpath = "C:/Users/momok/Desktop/Bachelorarbeit/dev/UNet/unet/data/membrane/train/label"
-outputpath = "C:/Users/momok/Desktop/Bachelorarbeit/dev/results/similarityplot"
+jsonpath = "C:/Users/momok/Desktop/Bachelorarbeit/dev/results/jsondata"
 csvpath = "C:/Users/momok/Desktop/Bachelorarbeit/dev/results/csvdata"
 
 
@@ -183,5 +183,5 @@ else:
 
 #fig.show()
 
-#plotdatadf.to_json(orient ="index", path_or_buf= os.path.join(outputpath, picture_id + ".json"))
-plotdatadf.to_csv(path_or_buf= os.path.join(csvpath,"{}d".format(dimensions), picture_id + ".csv"))
+plotdatadf.to_json(orient ="index", path_or_buf= os.path.join(jsonpath,"{}d".format(dimensions), picture_id + ".json"))
+#plotdatadf.to_csv(path_or_buf= os.path.join(csvpath,"{}d".format(dimensions), picture_id + ".csv"))
