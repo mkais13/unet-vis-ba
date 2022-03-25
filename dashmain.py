@@ -1,11 +1,12 @@
+from click import style
 import pandas as pd
 import plotly.express as px 
 import plotly.graph_objs as go
-import base64
-from dash import Dash, dcc, html, Input, Output, State 
+import dash_bootstrap_components as dbc
+from dash import Dash, dcc, html, Input, Output, State, dash_table
 import os
 
-app = Dash(__name__)
+app = Dash(__name__, update_title=None, external_stylesheets=[dbc.themes.FLATLY])
 
 def create_picture_options():
     result = []
@@ -14,71 +15,139 @@ def create_picture_options():
     return result
 
 
-app.layout  = html.Div([
+app.layout = html.Div([
+dbc.NavbarSimple(color="primary",brand = "SIMILARITY PLOT OF UNET TRAININGS WITH DIFFERENT HYPERPARAMETERS", dark=True),
 
-    html.H1("similarity plot of unet trainings with different hyperparameters", style={'textAlign': 'center'}),
+dbc.Container([
+    dbc.Row([
+        dbc.Col([
+            dbc.Card([
+                dbc.CardBody([
+                    dbc.Row([
+                        dbc.Col([
+                            html.Div(id="dropdown_text", children=["select the id of the picture to be analyzed"], className="text-center"),
+                            html.Div([
+                                dcc.Dropdown(   
+                                    id="selected_picture_id",
+                                    options= create_picture_options(), 
+                                    multi=False,
+                                    value="0",
+                                    clearable=False,
+                                ),
+                            ]),
+                        ], align="center"),
+                        dbc.Col([
 
-    
-    html.Div(id="dropdown_text", children=["select the id of the picture to be analyzed"]),
+                            html.Div(id="radio_text", children=["select the dimension to analyze in"], className="text-center"),
 
-    dcc.Dropdown(   
-        id="selected_picture_id",
-        options= create_picture_options(), 
-        multi=False,
-        value="0", 
-        style={"width" : "40%"}  
-    ),
+                            html.Div([
+                                dbc.RadioItems(
+                                    id="selected_dimension",
+                                    class_name="btn-group",
+                                    inputClassName="btn-check",
+                                    labelClassName="btn btn-outline-primary",
+                                    labelCheckedClassName="active",
+                                    options=[{"label" :"2D", "value": "2D"}, {"label": "3D","value":"3D"}], 
+                                    value="2D",
+                                    style={"padding-right" : 29}
+                                ),
+                            ], className="text-center"),
 
-    html.Div(id="radio_text", children=["select the dimension to analyze in"]),
+                        ],align="center"),
+                    ], justify= "evenly", align="center"),
+                    dcc.Graph(id="similaritygraph"),
+                ]),
+            ]),
+        ], width = {"size" : 9}),
+ 
+        dbc.Col([
+            dbc.Card([
+                dbc.CardBody([
+                    dbc.Col([
+                        html.Div(id="orig_picture_header" , children=["Original Picture"], className="text-center"),
 
-    dcc.RadioItems(
-        id="selected_dimension",
-        options=[{"label" :"2D", "value": "2D"}, {"label": "3D","value":"3D"}], 
-        value="2D"),
+                        html.Img(id="orig_picture", style={"width" : "250px", "min-heigth" : "250px"}, className="img-thumbnail"),
+            
+                        html.Div(id="pred_picture_header" , children=["Predicted Segmentation"], className="text-center"),
 
-    dcc.Graph(
-        id="similaritygraph",
-        style={"height": 400 }
-    ),
+                        html.Img(id="pred_picture", style={"width" : "250px", "min-heigth" : "250px"}, className="img-thumbnail"),
+                
+                        html.Div(id="selected_run_table_header" , children=["Parameters"], className="text-center"),
 
-    html.Div(id="selected_run_output"),
-
-    html.Div(id="picture"),
-
+                        html.Div(id="selected_run_table"),
+                    ], style={"display" : "flex", "flex-direction" : "column", "align-items": "center"})
+                ])
+            ]),
+        ], width={"size" : 3}),
+    ]),
     dcc.Store(id="current_dataframe")
+], style={"max-width" : "95%", "paddingTop" : "10px"})
 
 ])
 
-@app.callback([Output(component_id="picture", component_property="children"),
-Output(component_id="selected_run_output", component_property="children")],
+#updates view of the predicted segmentation
+@app.callback([Output(component_id="pred_picture", component_property="src"),
+Output(component_id="selected_run_table", component_property="children")],
 [Input(component_id="similaritygraph",component_property="clickData"),
 Input(component_id="selected_picture_id", component_property="value"),
 State(component_id="current_dataframe", component_property="data")],
 )
 
-def update_picture(clickData, pic_id, data):
+def update_predicted_picture(clickData, pic_id, data):
     if clickData != None:
         x = clickData["points"][0]["x"]
         y = clickData["points"][0]["y"]
-        print("x:", x)
-        print("y:", y)
         df = pd.read_json(data, orient= "index")
         run_id_df = df["run_id"].loc[(df["x"] == x) & (df["y"] == y)]
-        print("dataframe:")
-        print(run_id_df)
         run_id = run_id_df.to_list()[0]
-        dir_path = "results"
-        img_path = dir_path + "/" + run_id + "/" + pic_id + "{0}.png".format("" if run_id == "truth" else "_predict")
-        print(img_path)
-        img_base64 = base64.b64encode(open(img_path, 'rb').read()).decode('ascii')
-        output_string = "Selected run: {}".format(run_id)
-        return [html.Img(src = "data:image/png;base64,{}".format(img_base64), style={"width":"10%"})], output_string
+        img_path = "/assets/images/resultsrun3/" + run_id + "/" + pic_id + "{0}.png".format("" if run_id == "truth" else "_predict")
+
+        #create table
+        split_id = run_id.split("-")
+        table_header = [html.Thead(html.Tr([html.Th("Hyperparameter"), html.Th("Value")]))]
+        row1 = html.Tr([html.Td("Batchsize"), html.Td(split_id[0][2:])])
+        row2 = html.Tr([html.Td("Lossfunction"), html.Td(split_id[1][2:], style={"width" : "170px"})])
+        row3 = html.Tr([html.Td("Optimizer"), html.Td(split_id[2][3:])])
+        row4 = html.Tr([html.Td("Topologyfactor"), html.Td(split_id[3][2:])])
+        row5 = html.Tr([html.Td("Kernelinitializer"), html.Td(split_id[4][2:])])
+
+        table_body = [html.Tbody([row1, row2, row3, row4, row5])]
+
+        table = dbc.Table(table_header + table_body, bordered=True,class_name="table")
+
+
+        return img_path, table
     else: 
-        return [""], ""
+
+        img_path = "https://via.placeholder.com/250?text=Select+a+run"
+
+        table_header = [html.Thead(html.Tr([html.Th("Hyperparameter"), html.Th("Value")]))]
+        row1 = html.Tr([html.Td("Batchsize"), html.Td("")])
+        row2 = html.Tr([html.Td("Lossfunction"), html.Td("", style={"width" : "170px"})])
+        row3 = html.Tr([html.Td("Optimizer"), html.Td("")])
+        row4 = html.Tr([html.Td("Topologyfactor"), html.Td("")])
+        row5 = html.Tr([html.Td("Kernelinitializer"), html.Td("")])
+
+        table_body = [html.Tbody([row1, row2, row3, row4, row5])]
+
+        table = dbc.Table(table_header + table_body, bordered=True,class_name="table")
+
+        return img_path, table
+
+
+#updates view of the original picture
+@app.callback(
+    [Output(component_id="orig_picture", component_property="src")],
+    [Input(component_id="selected_picture_id", component_property="value")],
+)
+
+def update_original_picture(pic_id):
+    img_path = "/assets/images/originals/" + pic_id + ".png"
+    return [img_path]
 
     
 
-#update graph itself
+#updates similaritygraph 
 @app.callback(
     [Output(component_id="similaritygraph", component_property="figure"),
     Output(component_id="current_dataframe", component_property="data")],
@@ -88,7 +157,7 @@ def update_picture(clickData, pic_id, data):
 
 def update_graph(slctd_pic_id, slctd_dim):
 
-    data = pd.read_json("C:/Users/momok/Desktop/Bachelorarbeit/dev/results/jsondata/{0}/{1}.json".format(slctd_dim.lower(),slctd_pic_id), orient="index")
+    data = pd.read_json("assets/data/jsondata/{0}/{1}.json".format(slctd_dim.lower(),slctd_pic_id), orient="index")
 
     if slctd_dim == "3D":
         fig = px.scatter_3d(data,x="x",y="y",z="z",color="lossfunction", size="batchsize", symbol="optimizer", text="topologyfactor")

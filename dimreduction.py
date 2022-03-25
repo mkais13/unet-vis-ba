@@ -5,6 +5,9 @@ from keras.applications.vgg16 import VGG16
 from keras.applications.resnet_v2 import ResNet101V2
 from keras.models import Model
 import tensorflow as tf
+from keras.applications.imagenet_utils import decode_predictions
+
+
 
 import os
 import argparse
@@ -23,9 +26,9 @@ import matplotlib.image as mpimg
 
 
 
-filepath= "C:/Users/momok/Desktop/Bachelorarbeit/dev/results/results2"
+filepath= "C:/Users/momok/Desktop/Bachelorarbeit/dev/results/run3/results"
 groundtruthpath = "C:/Users/momok/Desktop/Bachelorarbeit/dev/UNet/unet/data/membrane/train/label"
-jsonpath = "C:/Users/momok/Desktop/Bachelorarbeit/dev/results/jsondata"
+jsonpath = "C:/Users/momok/Desktop/Bachelorarbeit/dev/results/run3/jsondata"
 csvpath = "C:/Users/momok/Desktop/Bachelorarbeit/dev/results/csvdata"
 
 
@@ -127,14 +130,7 @@ def reduce_dimensionality(features, dimensions,method = "umap"):
         plotdatalist[i].insert(insert_index + 6,float(split_ids[3].replace("tf","")))
         plotdatalist[i].insert(insert_index + 7,split_ids[4].replace("ki",""))
 
-    #insert truth info into the plotdatalist
-    truth_index = len(identifiers)
-    plotdatalist[truth_index].insert(insert_index + 2, "truth")
-    plotdatalist[truth_index].insert(insert_index + 3, int(20))
-    plotdatalist[truth_index].insert(insert_index + 4, "truth")
-    plotdatalist[truth_index].insert(insert_index + 5, "truth")
-    plotdatalist[truth_index].insert(insert_index + 6, float(0))
-    plotdatalist[truth_index].insert(insert_index + 7, "truth")
+
 
     return plotdatalist
 
@@ -162,15 +158,10 @@ for id in identifiers:
     vector = extract_features(os.path.join(filepath, id, picture_id +"_predict.png"),model)
     feature_vectors.append(vector)
 
-
-#get features for ground truth
-truth_vector = extract_features(os.path.join(groundtruthpath, picture_id + ".png"),model)
-feature_vectors.append(truth_vector)
 feature_vectors_np = np.array(feature_vectors)
 
 data_to_plot = reduce_dimensionality(feature_vectors_np, dimensions, method = method)
  
-print(data_to_plot[len(identifiers)])
 
 #convert list into Panda-DataFrame
 
@@ -181,7 +172,7 @@ else:
     plotdatadf = pd.DataFrame(data_to_plot, columns=["x","y","run_id","batchsize","lossfunction","optimizer","topologyfactor","kernelinitializer"])
     #fig = px.scatter(plotdatadf,x="x",y="y",color="lossfunction", size="batchsize", symbol="optimizer", text="run_id")
 
-#fig.show()
+
 
 plotdatadf.to_json(orient ="index", path_or_buf= os.path.join(jsonpath,"{}d".format(dimensions), picture_id + ".json"))
 #plotdatadf.to_csv(path_or_buf= os.path.join(csvpath,"{}d".format(dimensions), picture_id + ".csv"))
