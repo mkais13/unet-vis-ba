@@ -1,10 +1,10 @@
-from click import style
+
 import pandas as pd
 import plotly.express as px 
-import plotly.graph_objs as go
 import dash_bootstrap_components as dbc
 from dash import Dash, dcc, html, Input, Output, State, dash_table
 import os
+import tensorboard as tb
 
 app = Dash(__name__, update_title=None, external_stylesheets=[dbc.themes.FLATLY])
 
@@ -56,6 +56,13 @@ dbc.Container([
                         ],align="center"),
                     ], justify= "evenly", align="center"),
                     dcc.Graph(id="similaritygraph"),
+                ]),
+            ]),
+            dbc.Card([
+                dbc.CardBody([
+                    dbc.Row([
+                        dcc.Graph(id="extendedview"),
+                    ]),
                 ]),
             ]),
         ], width = {"size" : 9}),
@@ -167,6 +174,23 @@ def update_graph(slctd_pic_id, slctd_dim):
         fig.update_layout(clickmode='event+select')
 
     return fig, data.to_json(orient = "index")
+
+@app.callback(
+    [Output(component_id="extendedview", component_property="figure")],
+    [Input(component_id="similaritygraph",component_property="clickData")]
+)
+
+def update_extendedview(clickData):
+    if clickData != None:
+        x = clickData["points"][0]["x"]
+        y = clickData["points"][0]["y"]
+    experiment_id = "A1B5RFrYQhGb4eVOBkibUA"
+    experiment = tb.data.experimental.ExperimentFromDev(experiment_id)
+    df = experiment.get_scalars()
+    print("test")
+    print("df:",df)
+    fig = px.line(df, x="step", y ="epoch_loss")
+    return fig
 
 
 
