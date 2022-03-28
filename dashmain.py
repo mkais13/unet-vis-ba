@@ -90,7 +90,7 @@ dbc.Container([
                         dcc.Graph(id="accuracygraph",style ={"width" : "50%"}),
                         dcc.Graph(id="lossgraph",style ={"width" : "50%"})
                     ]),
-                ]),
+                ], style ={"heigth" : 300}),
             ], style={"marginTop" : 10}),
         ], width = {"size" : 9}),
  
