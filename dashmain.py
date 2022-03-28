@@ -1,6 +1,7 @@
 
 import pandas as pd
 import plotly.express as px 
+import plotly.graph_objects as go
 import dash_bootstrap_components as dbc
 from dash import Dash, dcc, html, Input, Output, State, dash_table
 import os
@@ -13,6 +14,31 @@ def create_picture_options():
     for i in range(30):
         result.append({"label": str(i), "value" : str(i)})
     return result
+
+
+
+#accuracydata = pd.read_json("assets/data/losslogs/scalars/acc.json", orient="index")
+#lossdata = pd.read_json("assets/data/losslogs/scalars/loss.json", orient="index")
+#accuracydata_list = accuracydata.values.tolist()
+#lossdata_list = lossdata.values.tolist()
+#accuracy_fig = go.Figure()
+#loss_fig = go.Figure()
+#step = [1,2,3,4,5,6,7,8,9,10]
+#index = 0
+#while index < len(accuracydata_list):
+#    acc_data_list_singlerun = accuracydata_list[index:index +10]
+#    loss_data_list_singlerun = lossdata_list[index:index +10]
+#    i = 0
+#    acc_valuelist = []
+#    loss_valuelist = []
+#    for i in range(10): 
+#        acc_valuelist.append(acc_data_list_singlerun[i][3])
+#        loss_valuelist.append(loss_data_list_singlerun[i][3])
+#    accuracy_fig.add_scatter(x=step, y=acc_valuelist, name=acc_data_list_singlerun[0][0], showlegend = False, hovertext=acc_data_list_singlerun[0][0])
+#    loss_fig.add_scatter(x=step, y=loss_valuelist, name=loss_data_list_singlerun[0][0], showlegend = False, hovertext=loss_data_list_singlerun[0][0])
+#    index += 10
+#accuracy_fig.update_layout(title = "accuracy", xaxis_title="epoch", yaxis_title = "value")
+#loss_fig.update_layout(title = "loss", xaxis_title="epoch", yaxis_title = "value")
 
 
 app.layout = html.Div([
@@ -61,10 +87,11 @@ dbc.Container([
             dbc.Card([
                 dbc.CardBody([
                     dbc.Row([
-                        dcc.Graph(id="extendedview"),
+                        dcc.Graph(id="accuracygraph",style ={"width" : "50%"}),
+                        dcc.Graph(id="lossgraph",style ={"width" : "50%"})
                     ]),
                 ]),
-            ]),
+            ], style={"marginTop" : 10}),
         ], width = {"size" : 9}),
  
         dbc.Col([
@@ -107,7 +134,7 @@ def update_predicted_picture(clickData, pic_id, data):
         df = pd.read_json(data, orient= "index")
         run_id_df = df["run_id"].loc[(df["x"] == x) & (df["y"] == y)]
         run_id = run_id_df.to_list()[0]
-        img_path = "/assets/images/resultsrun3/" + run_id + "/" + pic_id + "{0}.png".format("" if run_id == "truth" else "_predict")
+        img_path = "/assets/images/resultsrun3/" + run_id + "/" + pic_id + "{0}.png".format("_predict")
 
         #create table
         split_id = run_id.split("-")
@@ -164,7 +191,7 @@ def update_original_picture(pic_id):
 
 def update_graph(slctd_pic_id, slctd_dim):
 
-    data = pd.read_json("assets/data/jsondata/{0}/{1}.json".format(slctd_dim.lower(),slctd_pic_id), orient="index")
+    data = pd.read_json("assets/data/embeddata/{0}/{1}.json".format(slctd_dim.lower(),slctd_pic_id), orient="index")
 
     if slctd_dim == "3D":
         fig = px.scatter_3d(data,x="x",y="y",z="z",color="lossfunction", size="batchsize", symbol="optimizer", text="topologyfactor")
@@ -175,22 +202,78 @@ def update_graph(slctd_pic_id, slctd_dim):
 
     return fig, data.to_json(orient = "index")
 
+
+#updates the extended view for loss and accuracy
+
 @app.callback(
-    [Output(component_id="extendedview", component_property="figure")],
-    [Input(component_id="similaritygraph",component_property="clickData")]
+    [Output(component_id="accuracygraph", component_property="figure"),
+    Output(component_id="lossgraph", component_property="figure")],
+    [Input(component_id="similaritygraph",component_property="clickData"),
+    State(component_id="current_dataframe", component_property="data"),
+    State(component_id="accuracygraph", component_property="figure"),
+    State(component_id="lossgraph", component_property="figure")]
 )
 
-def update_extendedview(clickData):
+def update_extendedview(clickData, data, acc_figInput, loss_figInput):
+    #if something has been clicked
     if clickData != None:
+        #extract current run-id
         x = clickData["points"][0]["x"]
         y = clickData["points"][0]["y"]
-    experiment_id = "A1B5RFrYQhGb4eVOBkibUA"
-    experiment = tb.data.experimental.ExperimentFromDev(experiment_id)
-    df = experiment.get_scalars()
-    print("test")
-    print("df:",df)
-    fig = px.line(df, x="step", y ="epoch_loss")
-    return fig
+        df = pd.read_json(data, orient= "index")
+        run_id_df = df["run_id"].loc[(df["x"] == x) & (df["y"] == y)]
+        run_id = run_id_df.to_list()[0]
+        #iterate through both existing graphs, to find which line has been selected, then change its style
+        for i in range(len(acc_figInput["data"])):
+            if acc_figInput["data"][i]["name"] != run_id:
+                acc_figInput["data"][i]["opacity"] = 0.2
+                acc_figInput["data"][i]["line"] = {"dash" : "dot","width" : 3}
+            else: 
+                acc_figInput["data"][i]["opacity"] = 1
+                acc_figInput["data"][i]["line"] = {"dash" : "solid", "width" : 10}
+            if loss_figInput["data"][i]["name"] != run_id:
+                loss_figInput["data"][i]["opacity"] = 0.2
+                loss_figInput["data"][i]["line"] = {"dash" : "dot","width" : 3}
+            else:
+                loss_figInput["data"][i]["opacity"] = 1
+                loss_figInput["data"][i]["line"] = {"dash" : "solid", "width" : 10}    
+        #set output to graphs with updated styles 
+        accuracy_fig = acc_figInput
+        loss_fig = loss_figInput
+    #case: nothing selected
+    else:
+        #load data as lists
+        accuracydata = pd.read_json("assets/data/losslogs/scalars/acc.json", orient="index")
+        lossdata = pd.read_json("assets/data/losslogs/scalars/loss.json", orient="index")
+        accuracydata_list = accuracydata.values.tolist()
+        lossdata_list = lossdata.values.tolist()
+        accuracy_fig = go.Figure()
+        loss_fig = go.Figure()
+        #x-axis
+        step = [1,2,3,4,5,6,7,8,9,10]
+        index = 0
+        #iterate through both dataframes, which both have a length of 108(run)*10(data-entries per run)=1080
+        while index < len(accuracydata_list):
+            #get the first 10 data-entries -> one run
+            acc_data_list_singlerun = accuracydata_list[index:index +10]
+            loss_data_list_singlerun = lossdata_list[index:index +10]
+            acc_valuelist = []
+            loss_valuelist = []
+            #append the values that are supposed to be plotted (acc and loss)
+            for i in range(10): 
+                acc_valuelist.append(acc_data_list_singlerun[i][3])
+                loss_valuelist.append(loss_data_list_singlerun[i][3])
+            #add one line per run to the plot
+            accuracy_fig.add_scatter(x=step, y=acc_valuelist, name=acc_data_list_singlerun[0][0], showlegend = False, hovertext=acc_data_list_singlerun[0][0])
+            loss_fig.add_scatter(x=step, y=loss_valuelist, name=loss_data_list_singlerun[0][0], showlegend = False, hovertext=loss_data_list_singlerun[0][0])
+            #to skip to the next run in both dataframes
+            index += 10
+        accuracy_fig.update_layout(title = "accuracy", xaxis_title="epoch", yaxis_title = "value")
+        loss_fig.update_layout(title = "loss", xaxis_title="epoch", yaxis_title = "value")
+    return accuracy_fig, loss_fig
+
+
+
 
 
 

@@ -3,7 +3,7 @@ from skimage.metrics import structural_similarity as ssim
 from skimage.io import imread
 from skimage.transform import resize 
 import os
-from dimreduction import get_identifiers
+from preprocessing_scripts.dimreduction import get_identifiers
 import pandas as pd
 from skimage import img_as_float
 from keras.preprocessing.image import load_img 
