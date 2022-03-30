@@ -17,32 +17,11 @@ def create_picture_options():
 
 
 
-#accuracydata = pd.read_json("assets/data/losslogs/scalars/acc.json", orient="index")
-#lossdata = pd.read_json("assets/data/losslogs/scalars/loss.json", orient="index")
-#accuracydata_list = accuracydata.values.tolist()
-#lossdata_list = lossdata.values.tolist()
-#accuracy_fig = go.Figure()
-#loss_fig = go.Figure()
-#step = [1,2,3,4,5,6,7,8,9,10]
-#index = 0
-#while index < len(accuracydata_list):
-#    acc_data_list_singlerun = accuracydata_list[index:index +10]
-#    loss_data_list_singlerun = lossdata_list[index:index +10]
-#    i = 0
-#    acc_valuelist = []
-#    loss_valuelist = []
-#    for i in range(10): 
-#        acc_valuelist.append(acc_data_list_singlerun[i][3])
-#        loss_valuelist.append(loss_data_list_singlerun[i][3])
-#    accuracy_fig.add_scatter(x=step, y=acc_valuelist, name=acc_data_list_singlerun[0][0], showlegend = False, hovertext=acc_data_list_singlerun[0][0])
-#    loss_fig.add_scatter(x=step, y=loss_valuelist, name=loss_data_list_singlerun[0][0], showlegend = False, hovertext=loss_data_list_singlerun[0][0])
-#    index += 10
-#accuracy_fig.update_layout(title = "accuracy", xaxis_title="epoch", yaxis_title = "value")
-#loss_fig.update_layout(title = "loss", xaxis_title="epoch", yaxis_title = "value")
 
 
-app.layout = html.Div([
-dbc.NavbarSimple(color="primary",brand = "SIMILARITY PLOT OF UNET TRAININGS WITH DIFFERENT HYPERPARAMETERS", dark=True),
+
+app.layout = dbc.Container([
+dbc.NavbarSimple(color="primary",brand = "SIMILARITY PLOT OF UNET TRAININGS WITH DIFFERENT HYPERPARAMETERS", dark=True, style={"padding-left" : "3vh", "height" : "8vh"}),
 
 dbc.Container([
     dbc.Row([
@@ -75,49 +54,54 @@ dbc.Container([
                                     labelCheckedClassName="active",
                                     options=[{"label" :"2D", "value": "2D"}, {"label": "3D","value":"3D"}], 
                                     value="2D",
-                                    style={"padding-right" : 29}
+                                    style={"padding-right" : "3vh"}
                                 ),
                             ], className="text-center"),
 
                         ],align="center"),
                     ], justify= "evenly", align="center"),
-                    dcc.Graph(id="similaritygraph"),
+                    dcc.Graph(id="similaritygraph", style={"height" : "40vh"}),
                 ]),
             ]),
             dbc.Card([
                 dbc.CardBody([
                     dbc.Row([
-                        dcc.Graph(id="accuracygraph",style ={"width" : "50%"}),
-                        dcc.Graph(id="lossgraph",style ={"width" : "50%"})
-                    ]),
-                ], style ={"heigth" : 300}),
-            ], style={"marginTop" : 10}),
-        ], width = {"size" : 9}),
+                        dbc.Col([
+                        html.Div(id="orig_picture_header" , children=["Original Picture"]),
+
+                        html.Img(id="orig_picture", style={"width" : "25vh"}, className="img-thumbnail"),
+                        ], style={"display" : "flex", "flex-direction" : "column", "align-items": "center"}),
+                        dbc.Col([
+                        html.Div(id="pred_picture_header" , children=["Predicted Segmentation"]),
+                        
+                        html.Img(id="pred_picture", style={"width" : "25vh"}, className="img-thumbnail"),
+                        ], style={"display" : "flex", "flex-direction" : "column", "align-items": "center"}),
+                        dbc.Col([
+                        html.Div(id="selected_run_table_header" , children=["Parameters"]),
+
+                        html.Div(id="selected_run_table"),
+                        ], style={"display" : "flex", "flex-direction" : "column", "align-items": "center"}),
+                    ], style={"display" : "flex", "flex-direction" : "row", "align-items": "center"}),
+                        
+                ]),
+            ], style={"marginTop" : "2vh"})
+        ], width = {"size" : 8}),
  
         dbc.Col([
             dbc.Card([
                 dbc.CardBody([
                     dbc.Col([
-                        html.Div(id="orig_picture_header" , children=["Original Picture"], className="text-center"),
-
-                        html.Img(id="orig_picture", style={"width" : "250px", "min-heigth" : "250px"}, className="img-thumbnail"),
-            
-                        html.Div(id="pred_picture_header" , children=["Predicted Segmentation"], className="text-center"),
-
-                        html.Img(id="pred_picture", style={"width" : "250px", "min-heigth" : "250px"}, className="img-thumbnail"),
-                
-                        html.Div(id="selected_run_table_header" , children=["Parameters"], className="text-center"),
-
-                        html.Div(id="selected_run_table"),
-                    ], style={"display" : "flex", "flex-direction" : "column", "align-items": "center"})
-                ])
+                        dcc.Graph(id="accuracygraph", style={"height" : "42vh"}),
+                        dcc.Graph(id="lossgraph", style={"height" : "42vh"})
+                    ])
+                ],)
             ]),
-        ], width={"size" : 3}),
-    ]),
+        ], width = {"size" : 4}),
+    ], style={} ),
     dcc.Store(id="current_dataframe")
-], style={"max-width" : "95%", "paddingTop" : "10px"})
+], style={ "padding" : "2vh"})
 
-])
+], style = {"margin" : 0, "padding-right" : 0, "padding-left" : 0, "min-width" : "100%"})
 
 #updates view of the predicted segmentation
 @app.callback([Output(component_id="pred_picture", component_property="src"),
@@ -140,7 +124,7 @@ def update_predicted_picture(clickData, pic_id, data):
         split_id = run_id.split("-")
         table_header = [html.Thead(html.Tr([html.Th("Hyperparameter"), html.Th("Value")]))]
         row1 = html.Tr([html.Td("Batchsize"), html.Td(split_id[0][2:])])
-        row2 = html.Tr([html.Td("Lossfunction"), html.Td(split_id[1][2:], style={"width" : "170px"})])
+        row2 = html.Tr([html.Td("Lossfunction"), html.Td(split_id[1][2:], style={"width" : "18vh"})])
         row3 = html.Tr([html.Td("Optimizer"), html.Td(split_id[2][3:])])
         row4 = html.Tr([html.Td("Topologyfactor"), html.Td(split_id[3][2:])])
         row5 = html.Tr([html.Td("Kernelinitializer"), html.Td(split_id[4][2:])])
@@ -157,7 +141,7 @@ def update_predicted_picture(clickData, pic_id, data):
 
         table_header = [html.Thead(html.Tr([html.Th("Hyperparameter"), html.Th("Value")]))]
         row1 = html.Tr([html.Td("Batchsize"), html.Td("")])
-        row2 = html.Tr([html.Td("Lossfunction"), html.Td("", style={"width" : "170px"})])
+        row2 = html.Tr([html.Td("Lossfunction"), html.Td("", style={"width" : "18vh"})])
         row3 = html.Tr([html.Td("Optimizer"), html.Td("")])
         row4 = html.Tr([html.Td("Topologyfactor"), html.Td("")])
         row5 = html.Tr([html.Td("Kernelinitializer"), html.Td("")])
@@ -268,7 +252,7 @@ def update_extendedview(clickData, data, acc_figInput, loss_figInput):
             loss_fig.add_scatter(x=step, y=loss_valuelist, name=loss_data_list_singlerun[0][0], showlegend = False, hovertext=loss_data_list_singlerun[0][0])
             #to skip to the next run in both dataframes
             index += 10
-        accuracy_fig.update_layout(title = "accuracy", xaxis_title="epoch", yaxis_title = "value")
+        accuracy_fig.update_layout(title = "accuracy", xaxis_title="epoch", yaxis_title = "value" )
         loss_fig.update_layout(title = "loss", xaxis_title="epoch", yaxis_title = "value")
     return accuracy_fig, loss_fig
 
