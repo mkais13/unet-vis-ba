@@ -63,28 +63,46 @@ dbc.Container([
                     dcc.Graph(id="similaritygraph", style={"height" : "40vh"}),
                 ]),
             ]),
-            dbc.Card([
-                dbc.CardBody([
-                    dbc.Row([
+            dbc.Row([
+                dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                    
                         dbc.Col([
                         html.Div(id="orig_picture_header" , children=["Original Picture"]),
 
-                        html.Img(id="orig_picture", style={"width" : "25vh"}, className="img-thumbnail"),
+                        html.Img(id="orig_picture", style={"width" : "29vh"}, className="img-thumbnail"),
                         ], style={"display" : "flex", "flex-direction" : "column", "align-items": "center"}),
                         dbc.Col([
                         html.Div(id="pred_picture_header" , children=["Predicted Segmentation"]),
                         
-                        html.Img(id="pred_picture", style={"width" : "25vh"}, className="img-thumbnail"),
+                        html.Img(id="pred_picture", style={"width" : "29vh"}, className="img-thumbnail"),
                         ], style={"display" : "flex", "flex-direction" : "column", "align-items": "center"}),
+                    
+
+
+
+                    
+                        
+                    ], style={"display" : "flex", "flex-direction" : "row", "align-items": "center"} ),
+                ], style={"marginTop" : "2vh"})
+                ], width = {"size" : 8}),
+
+                dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
                         dbc.Col([
                         html.Div(id="selected_run_table_header" , children=["Parameters"]),
 
                         html.Div(id="selected_run_table"),
                         ], style={"display" : "flex", "flex-direction" : "column", "align-items": "center"}),
-                    ], style={"display" : "flex", "flex-direction" : "row", "align-items": "center"}),
-                        
-                ]),
-            ], style={"marginTop" : "2vh"})
+                    ])
+                ], style={"marginTop" : "2vh"})
+                ], width = {"size" : 4}),
+            ], style={"display" : "flex", "flex-direction" : "row", "align-items": "center"}),
+
+
+
         ], width = {"size" : 8}),
  
         dbc.Col([
@@ -252,8 +270,20 @@ def update_extendedview(clickData, data, acc_figInput, loss_figInput):
             loss_fig.add_scatter(x=step, y=loss_valuelist, name=loss_data_list_singlerun[0][0], showlegend = False, hovertext=loss_data_list_singlerun[0][0])
             #to skip to the next run in both dataframes
             index += 10
-        accuracy_fig.update_layout(title = "accuracy", xaxis_title="epoch", yaxis_title = "value" )
-        loss_fig.update_layout(title = "loss", xaxis_title="epoch", yaxis_title = "value")
+        accuracy_fig.update_layout( xaxis_title="epoch", yaxis_title = "value", 
+            title={
+            'text': "Accuracy",
+            'y':0.9,
+            'x':0.5,
+            'xanchor': 'center',
+            'yanchor': 'top'} )
+        loss_fig.update_layout( xaxis_title="epoch", yaxis_title = "value",
+            title={
+            'text': "Loss",
+            'y':0.9,
+            'x':0.5,
+            'xanchor': 'center',
+            'yanchor': 'top'})
     return accuracy_fig, loss_fig
 
 
