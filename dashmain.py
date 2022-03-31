@@ -3,7 +3,8 @@ import pandas as pd
 import plotly.express as px 
 import plotly.graph_objects as go
 import dash_bootstrap_components as dbc
-from dash import Dash, dcc, html, Input, Output, State, dash_table
+
+from dash import Dash, dcc, html, Input, Output, State, dash_table, callback_context
 import os
 import tensorboard as tb
 
@@ -116,23 +117,25 @@ dbc.Container([
             ]),
         ], width = {"size" : 4}),
     ], style={} ),
-    dcc.Store(id="current_dataframe")
-], style={ "padding" : "2vh"})
+    dcc.Store(id="current_dataframe"),
+    dcc.Store(id="selected_runs"),
+    dcc.Store(id="not_selected_runs")
+], style={ "padding" : "2vh", "min-width" : "inherit"})
 
 ], style = {"margin" : 0, "padding-right" : 0, "padding-left" : 0, "min-width" : "100%"})
 
 #updates view of the predicted segmentation
 @app.callback([Output(component_id="pred_picture", component_property="src"),
 Output(component_id="selected_run_table", component_property="children")],
-[Input(component_id="similaritygraph",component_property="clickData"),
+[Input(component_id="similaritygraph",component_property="selectedData"),
 Input(component_id="selected_picture_id", component_property="value"),
 State(component_id="current_dataframe", component_property="data")],
 )
 
-def update_predicted_picture(clickData, pic_id, data):
-    if clickData != None:
-        x = clickData["points"][0]["x"]
-        y = clickData["points"][0]["y"]
+def update_predicted_picture(selectedData, pic_id, data):
+    if selectedData != None:
+        x = selectedData["points"][0]["x"]
+        y = selectedData["points"][0]["y"]
         df = pd.read_json(data, orient= "index")
         run_id_df = df["run_id"].loc[(df["x"] == x) & (df["y"] == y)]
         run_id = run_id_df.to_list()[0]
@@ -210,35 +213,39 @@ def update_graph(slctd_pic_id, slctd_dim):
 @app.callback(
     [Output(component_id="accuracygraph", component_property="figure"),
     Output(component_id="lossgraph", component_property="figure")],
-    [Input(component_id="similaritygraph",component_property="clickData"),
-    State(component_id="current_dataframe", component_property="data"),
+    [Input(component_id="selected_runs", component_property="data"),
+    State(component_id="not_selected_runs", component_property="data"),
     State(component_id="accuracygraph", component_property="figure"),
     State(component_id="lossgraph", component_property="figure")]
 )
 
-def update_extendedview(clickData, data, acc_figInput, loss_figInput):
+def update_extendedview(selected_runs_json, not_selected_runs_json, acc_figInput, loss_figInput):
     #if something has been clicked
-    if clickData != None:
-        #extract current run-id
-        x = clickData["points"][0]["x"]
-        y = clickData["points"][0]["y"]
-        df = pd.read_json(data, orient= "index")
-        run_id_df = df["run_id"].loc[(df["x"] == x) & (df["y"] == y)]
-        run_id = run_id_df.to_list()[0]
+    if selected_runs_json != None:
+        #extract current run-ids
+        selected_runs_df = pd.read_json(selected_runs_json, orient="index")
+        not_selected_runs_df = pd.read_json(not_selected_runs_json, orient="index")
+        selected_run_ids = selected_runs_df["run_id"].tolist()
+        not_selected_run_ids = not_selected_runs_df["run_id"].tolist()
+       
         #iterate through both existing graphs, to find which line has been selected, then change its style
-        for i in range(len(acc_figInput["data"])):
-            if acc_figInput["data"][i]["name"] != run_id:
-                acc_figInput["data"][i]["opacity"] = 0.2
-                acc_figInput["data"][i]["line"] = {"dash" : "dot","width" : 3}
-            else: 
-                acc_figInput["data"][i]["opacity"] = 1
-                acc_figInput["data"][i]["line"] = {"dash" : "solid", "width" : 10}
-            if loss_figInput["data"][i]["name"] != run_id:
-                loss_figInput["data"][i]["opacity"] = 0.2
-                loss_figInput["data"][i]["line"] = {"dash" : "dot","width" : 3}
-            else:
-                loss_figInput["data"][i]["opacity"] = 1
-                loss_figInput["data"][i]["line"] = {"dash" : "solid", "width" : 10}    
+        inputs = [acc_figInput, loss_figInput]
+        for k in range(len(inputs)): #loop trough both graphs
+            for j in range(len(selected_run_ids)): #loop through all selected runs
+                for i in range(len(inputs[k]["data"])): #loop trough every line in current graph
+                    if inputs[k]["data"][i]["name"] == selected_run_ids[j]:
+                        inputs[k]["data"][i]["opacity"] = 0.8
+                        inputs[k]["data"][i]["line"] = {"dash" : "solid", "width" : 10}
+        
+        for k in range(len(inputs)): #loop trough both graphs
+            for i in range(len(inputs[k]["data"])): #loop trough every line in current graph
+                for j in range(len(not_selected_run_ids)): #loop through all selected runs
+                    if inputs[k]["data"][i]["name"] == not_selected_run_ids[j]:
+                        inputs[k]["data"][i]["opacity"] = 0.2
+                        inputs[k]["data"][i]["line"] = {"dash" : "dot", "width" : 3}
+        
+            
+            
         #set output to graphs with updated styles 
         accuracy_fig = acc_figInput
         loss_fig = loss_figInput
@@ -248,6 +255,7 @@ def update_extendedview(clickData, data, acc_figInput, loss_figInput):
         accuracydata = pd.read_json("assets/data/losslogs/scalars/acc.json", orient="index")
         lossdata = pd.read_json("assets/data/losslogs/scalars/loss.json", orient="index")
         accuracydata_list = accuracydata.values.tolist()
+        print(accuracydata_list)
         lossdata_list = lossdata.values.tolist()
         accuracy_fig = go.Figure()
         loss_fig = go.Figure()
@@ -287,6 +295,62 @@ def update_extendedview(clickData, data, acc_figInput, loss_figInput):
     return accuracy_fig, loss_fig
 
 
+
+#updates the selected runs when the similaritygraph changes
+@app.callback(
+    [Output(component_id="selected_runs", component_property="data"),
+    Output(component_id="not_selected_runs", component_property="data")],
+    [Input(component_id="similaritygraph",component_property="selectedData"),
+    Input(component_id="accuracygraph",component_property="selectedData"),
+    Input(component_id="lossgraph",component_property="selectedData"),
+    State(component_id="current_dataframe", component_property="data")], prevent_initial_call=True
+)
+
+def update_selected_runs_through_embedding(sim_selectedData, acc_selectedData, loss_selectedData, data):
+
+    current_df = pd.read_json(data, orient= "index")
+
+
+    if callback_context.triggered[0]['prop_id'].split('.')[0] == "similaritygraph":
+        
+        selected_x_coordinates = []
+        selected_y_coordinates = []
+        for i in range(len(sim_selectedData["points"])):
+            selected_x_coordinates.append(sim_selectedData["points"][i]["x"])
+            selected_y_coordinates.append(sim_selectedData["points"][i]["y"])
+        selected_runs_df = current_df.loc[current_df["y"].isin(selected_y_coordinates) & current_df["x"].isin(selected_x_coordinates)]
+        not_selected_runs_df = current_df.loc[~current_df["y"].isin(selected_y_coordinates) & ~current_df["x"].isin(selected_x_coordinates)]
+
+        return selected_runs_df.to_json(orient = "index"), not_selected_runs_df.to_json(orient = "index")
+    
+    else: 
+        log_df = None
+        selectedData = []
+        if callback_context.triggered[0]['prop_id'].split('.')[0]  == "accuracygraph":
+            log_df = pd.read_json("assets/data/losslogs/scalars/acc.json", orient="index")
+            selectedData = acc_selectedData
+
+        if callback_context.triggered[0]['prop_id'].split('.')[0]  == "lossgraph":
+            log_df = pd.read_json("assets/data/losslogs/scalars/loss.json", orient="index")
+            selectedData = loss_selectedData
+        selected_x_coordinates = []
+        selected_y_coordinates = []
+        
+
+        for i in range(len(selectedData["points"])):
+            selected_x_coordinates.append(selectedData["points"][i]["x"])
+            selected_y_coordinates.append(selectedData["points"][i]["y"])
+        
+        print(selected_y_coordinates)
+        selected_runs_df_log_format = log_df.loc[log_df["value"].isin(selected_y_coordinates) & log_df["step"].isin(selected_x_coordinates)]
+        print("log_format",selected_runs_df_log_format)
+        not_selected_runs_df_log_format = log_df.loc[~log_df["value"].isin(selected_y_coordinates) & ~log_df["step"].isin(selected_x_coordinates)]
+        selected_run_ids = selected_runs_df_log_format["run"].tolist()
+        not_selected_run_ids = not_selected_runs_df_log_format["run"].tolist()
+        selected_runs_df = current_df.loc[current_df["run_id"].isin(selected_run_ids)]
+        print("selected_df" ,selected_runs_df)
+        not_selected_runs_df = current_df.loc[~current_df["run_id"].isin(not_selected_run_ids)]
+        return selected_runs_df.to_json(orient = "index"), not_selected_runs_df.to_json(orient = "index")
 
 
 
