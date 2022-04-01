@@ -1,4 +1,5 @@
 
+from json.encoder import INFINITY
 import pandas as pd
 import plotly.express as px 
 import plotly.graph_objects as go
@@ -134,25 +135,32 @@ State(component_id="current_dataframe", component_property="data")],
 
 def update_predicted_picture(selectedData, pic_id, data):
     if selectedData != None:
+        img_path = ""
+        run_id = ""
         x = selectedData["points"][0]["x"]
         y = selectedData["points"][0]["y"]
         df = pd.read_json(data, orient= "index")
         run_id_df = df["run_id"].loc[(df["x"] == x) & (df["y"] == y)]
-        run_id = run_id_df.to_list()[0]
-        img_path = "/assets/images/resultsrun3/" + run_id + "/" + pic_id + "{0}.png".format("_predict")
+        run_id_list = run_id_df.to_list()
+        if run_id_list:
+            run_id = run_id_list[0]
+            img_path = "/assets/images/resultsrun3/" + run_id + "/" + pic_id + "{0}.png".format("_predict")
 
-        #create table
-        split_id = run_id.split("-")
-        table_header = [html.Thead(html.Tr([html.Th("Hyperparameter"), html.Th("Value")]))]
-        row1 = html.Tr([html.Td("Batchsize"), html.Td(split_id[0][2:])])
-        row2 = html.Tr([html.Td("Lossfunction"), html.Td(split_id[1][2:], style={"width" : "18vh"})])
-        row3 = html.Tr([html.Td("Optimizer"), html.Td(split_id[2][3:])])
-        row4 = html.Tr([html.Td("Topologyfactor"), html.Td(split_id[3][2:])])
-        row5 = html.Tr([html.Td("Kernelinitializer"), html.Td(split_id[4][2:])])
+            #create table
+            split_id = run_id.split("-")
+            table_header = [html.Thead(html.Tr([html.Th("Hyperparameter"), html.Th("Value")]))]
+            row1 = html.Tr([html.Td("Batchsize"), html.Td(split_id[0][2:])])
+            row2 = html.Tr([html.Td("Lossfunction"), html.Td(split_id[1][2:], style={"width" : "18vh"})])
+            row3 = html.Tr([html.Td("Optimizer"), html.Td(split_id[2][3:])])
+            row4 = html.Tr([html.Td("Topologyfactor"), html.Td(split_id[3][2:])])
+            row5 = html.Tr([html.Td("Kernelinitializer"), html.Td(split_id[4][2:])])
 
-        table_body = [html.Tbody([row1, row2, row3, row4, row5])]
+            table_body = [html.Tbody([row1, row2, row3, row4, row5])]
 
-        table = dbc.Table(table_header + table_body, bordered=True,class_name="table")
+            table = dbc.Table(table_header + table_body, bordered=True,class_name="table")
+        else:
+            table = get_empty_table()
+            img_path = "https://via.placeholder.com/250?text=Select+a+run"
 
 
         return img_path, table
@@ -160,16 +168,7 @@ def update_predicted_picture(selectedData, pic_id, data):
 
         img_path = "https://via.placeholder.com/250?text=Select+a+run"
 
-        table_header = [html.Thead(html.Tr([html.Th("Hyperparameter"), html.Th("Value")]))]
-        row1 = html.Tr([html.Td("Batchsize"), html.Td("")])
-        row2 = html.Tr([html.Td("Lossfunction"), html.Td("", style={"width" : "18vh"})])
-        row3 = html.Tr([html.Td("Optimizer"), html.Td("")])
-        row4 = html.Tr([html.Td("Topologyfactor"), html.Td("")])
-        row5 = html.Tr([html.Td("Kernelinitializer"), html.Td("")])
-
-        table_body = [html.Tbody([row1, row2, row3, row4, row5])]
-
-        table = dbc.Table(table_header + table_body, bordered=True,class_name="table")
+        table = get_empty_table()
 
         return img_path, table
 
@@ -189,23 +188,60 @@ def update_original_picture(pic_id):
 #updates similaritygraph 
 @app.callback(
     [Output(component_id="similaritygraph", component_property="figure"),
+    Output(component_id="similaritygraph", component_property="selectedData"),
     Output(component_id="current_dataframe", component_property="data")],
     [Input(component_id="selected_picture_id", component_property="value"),
-    Input(component_id="selected_dimension", component_property="value")]
+    Input(component_id="selected_dimension", component_property="value"),
+    Input(component_id="selected_runs", component_property="data"),
+    State(component_id="similaritygraph", component_property="figure")]
 )
 
-def update_graph(slctd_pic_id, slctd_dim):
+def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, similarity_figInput):
 
     data = pd.read_json("assets/data/embeddata/{0}/{1}.json".format(slctd_dim.lower(),slctd_pic_id), orient="index")
+    selectedDataOutput = None
 
-    if slctd_dim == "3D":
-        fig = px.scatter_3d(data,x="x",y="y",z="z",color="lossfunction", size="batchsize", symbol="optimizer", text="topologyfactor")
-        fig.update_layout(clickmode='event+select')
+    if selected_runs_json == None:
+
+        if slctd_dim == "3D":
+            fig = px.scatter_3d(data,x="x",y="y",z="z",color="lossfunction", size="batchsize", symbol="optimizer", text="topologyfactor", custom_data= ["run_id"])
+            fig.update_layout(clickmode='event+select')
+        else:
+            fig = px.scatter(data,x="x",y="y",color="lossfunction", size="batchsize", symbol="optimizer", text="topologyfactor", custom_data= ["run_id"])
+            fig.update_layout(clickmode='event+select')
+
+        return fig, selectedDataOutput, data.to_json(orient = "index")
     else:
-        fig = px.scatter(data,x="x",y="y",color="lossfunction", size="batchsize", symbol="optimizer", text="topologyfactor")
-        fig.update_layout(clickmode='event+select')
+        selectedDataOutput = {"points" : []}
+        #extract current run-ids
+        selected_runs_df = pd.read_json(selected_runs_json, orient="index")
+        selected_run_ids = selected_runs_df["run_id"].tolist()
 
-    return fig, data.to_json(orient = "index")
+        lowest_x_value = INFINITY
+        highest_x_value = -INFINITY
+        lowest_y_value = INFINITY
+        highest_y_value = -INFINITY
+
+
+        for i in range(len(selected_run_ids)):
+            for j in range (len(similarity_figInput["data"])):
+                for k in range(len(similarity_figInput["data"][j]["customdata"][0])):
+                    if similarity_figInput["data"][j]["customdata"][0][k] == selected_run_ids[i]:
+                        selectedDataOutput["points"].append({"curveNumber": 0,
+                                                        "pointNumber": 0,
+                                                        "pointIndex": 0,
+                                                        "x": similarity_figInput["data"][j]["x"][k],
+                                                        "y": similarity_figInput["data"][j]["y"][k],
+                                                        })
+                        print("coordinates for selectedData",{ "x": similarity_figInput["data"][j]["x"][k],
+                                                        "y": similarity_figInput["data"][j]["y"][k]})
+                    
+
+        print(selectedDataOutput)
+        return similarity_figInput, selectedDataOutput, data.to_json(orient = "index")
+                    
+
+
 
 
 #updates the extended view for loss and accuracy
@@ -255,7 +291,6 @@ def update_extendedview(selected_runs_json, not_selected_runs_json, acc_figInput
         accuracydata = pd.read_json("assets/data/losslogs/scalars/acc.json", orient="index")
         lossdata = pd.read_json("assets/data/losslogs/scalars/loss.json", orient="index")
         accuracydata_list = accuracydata.values.tolist()
-        print(accuracydata_list)
         lossdata_list = lossdata.values.tolist()
         accuracy_fig = go.Figure()
         loss_fig = go.Figure()
@@ -306,22 +341,25 @@ def update_extendedview(selected_runs_json, not_selected_runs_json, acc_figInput
     State(component_id="current_dataframe", component_property="data")], prevent_initial_call=True
 )
 
-def update_selected_runs_through_embedding(sim_selectedData, acc_selectedData, loss_selectedData, data):
+def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, data):
 
     current_df = pd.read_json(data, orient= "index")
 
+    print("sim_selectedData", sim_selectedData)
 
     if callback_context.triggered[0]['prop_id'].split('.')[0] == "similaritygraph":
-        
-        selected_x_coordinates = []
-        selected_y_coordinates = []
-        for i in range(len(sim_selectedData["points"])):
-            selected_x_coordinates.append(sim_selectedData["points"][i]["x"])
-            selected_y_coordinates.append(sim_selectedData["points"][i]["y"])
-        selected_runs_df = current_df.loc[current_df["y"].isin(selected_y_coordinates) & current_df["x"].isin(selected_x_coordinates)]
-        not_selected_runs_df = current_df.loc[~current_df["y"].isin(selected_y_coordinates) & ~current_df["x"].isin(selected_x_coordinates)]
+        if(sim_selectedData != None):
+            selected_x_coordinates = []
+            selected_y_coordinates = []
+            for i in range(len(sim_selectedData["points"])):
+                selected_x_coordinates.append(sim_selectedData["points"][i]["x"])
+                selected_y_coordinates.append(sim_selectedData["points"][i]["y"])
+            selected_runs_df = current_df.loc[current_df["y"].isin(selected_y_coordinates) & current_df["x"].isin(selected_x_coordinates)]
+            not_selected_runs_df = current_df.loc[~current_df["y"].isin(selected_y_coordinates) & ~current_df["x"].isin(selected_x_coordinates)]
 
-        return selected_runs_df.to_json(orient = "index"), not_selected_runs_df.to_json(orient = "index")
+            return selected_runs_df.to_json(orient = "index"), not_selected_runs_df.to_json(orient = "index")
+        else:
+            return None, None
     
     else: 
         log_df = None
@@ -341,18 +379,31 @@ def update_selected_runs_through_embedding(sim_selectedData, acc_selectedData, l
             selected_x_coordinates.append(selectedData["points"][i]["x"])
             selected_y_coordinates.append(selectedData["points"][i]["y"])
         
-        print(selected_y_coordinates)
-        selected_runs_df_log_format = log_df.loc[log_df["value"].isin(selected_y_coordinates) & log_df["step"].isin(selected_x_coordinates)]
-        print("log_format",selected_runs_df_log_format)
+        selected_runs_df_log_format = log_df.loc[log_df["value"].isin(selected_y_coordinates) & (log_df["step"]+1).isin(selected_x_coordinates)]
         not_selected_runs_df_log_format = log_df.loc[~log_df["value"].isin(selected_y_coordinates) & ~log_df["step"].isin(selected_x_coordinates)]
         selected_run_ids = selected_runs_df_log_format["run"].tolist()
         not_selected_run_ids = not_selected_runs_df_log_format["run"].tolist()
         selected_runs_df = current_df.loc[current_df["run_id"].isin(selected_run_ids)]
-        print("selected_df" ,selected_runs_df)
         not_selected_runs_df = current_df.loc[~current_df["run_id"].isin(not_selected_run_ids)]
         return selected_runs_df.to_json(orient = "index"), not_selected_runs_df.to_json(orient = "index")
 
 
+
+def get_empty_table():
+    img_path = "https://via.placeholder.com/250?text=Select+a+run"
+
+    table_header = [html.Thead(html.Tr([html.Th("Hyperparameter"), html.Th("Value")]))]
+    row1 = html.Tr([html.Td("Batchsize"), html.Td("")])
+    row2 = html.Tr([html.Td("Lossfunction"), html.Td("", style={"width" : "18vh"})])
+    row3 = html.Tr([html.Td("Optimizer"), html.Td("")])
+    row4 = html.Tr([html.Td("Topologyfactor"), html.Td("")])
+    row5 = html.Tr([html.Td("Kernelinitializer"), html.Td("")])
+
+    table_body = [html.Tbody([row1, row2, row3, row4, row5])]
+
+    table = dbc.Table(table_header + table_body, bordered=True,class_name="table")
+    
+    return table
 
 
 if __name__ == '__main__':
