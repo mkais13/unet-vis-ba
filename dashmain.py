@@ -1,9 +1,9 @@
 
-from json.encoder import INFINITY
 import pandas as pd
 import plotly.express as px 
 import plotly.graph_objects as go
 import dash_bootstrap_components as dbc
+import numpy as np
 
 from dash import Dash, dcc, html, Input, Output, State, dash_table, callback_context
 import os
@@ -188,57 +188,66 @@ def update_original_picture(pic_id):
 #updates similaritygraph 
 @app.callback(
     [Output(component_id="similaritygraph", component_property="figure"),
-    Output(component_id="similaritygraph", component_property="selectedData"),
     Output(component_id="current_dataframe", component_property="data")],
     [Input(component_id="selected_picture_id", component_property="value"),
     Input(component_id="selected_dimension", component_property="value"),
     Input(component_id="selected_runs", component_property="data"),
+    Input(component_id="not_selected_runs", component_property="data"),
     State(component_id="similaritygraph", component_property="figure")]
 )
 
-def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, similarity_figInput):
+def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, not_selected_runs_json, similarity_fig):
 
     data = pd.read_json("assets/data/embeddata/{0}/{1}.json".format(slctd_dim.lower(),slctd_pic_id), orient="index")
-    selectedDataOutput = None
+    triggering_component = callback_context.triggered[0]['prop_id'].split('.')[0]
 
-    if selected_runs_json == None:
-
-        if slctd_dim == "3D":
-            fig = px.scatter_3d(data,x="x",y="y",z="z",color="lossfunction", size="batchsize", symbol="optimizer", text="topologyfactor", custom_data= ["run_id"])
-            fig.update_layout(clickmode='event+select')
-        else:
-            fig = px.scatter(data,x="x",y="y",color="lossfunction", size="batchsize", symbol="optimizer", text="topologyfactor", custom_data= ["run_id"])
-            fig.update_layout(clickmode='event+select')
-
-        return fig, selectedDataOutput, data.to_json(orient = "index")
+    if slctd_dim == "3D":
+        similarity_fig = px.scatter_3d(data,x="x",y="y",z="z",color="lossfunction", size="batchsize", symbol="optimizer", custom_data= ["run_id"])
+        similarity_fig.update_layout(clickmode='event+select')
     else:
-        selectedDataOutput = {"points" : []}
+        similarity_fig = px.scatter(data,x="x",y="y",color="lossfunction", size="batchsize", symbol="optimizer", custom_data= ["run_id"])
+        similarity_fig.update_layout(clickmode='event+select')
+
+    if triggering_component == "":
+        return similarity_fig, data.to_json(orient = "index")
+    else:
         #extract current run-ids
         selected_runs_df = pd.read_json(selected_runs_json, orient="index")
+        not_selected_runs_df = pd.read_json(not_selected_runs_json, orient="index")
         selected_run_ids = selected_runs_df["run_id"].tolist()
+        not_selected_run_ids = not_selected_runs_df["run_id"].tolist()
 
-        lowest_x_value = INFINITY
-        highest_x_value = -INFINITY
-        lowest_y_value = INFINITY
-        highest_y_value = -INFINITY
+        selected_counter = 0
+        not_selected_counter = 0
+        template_array = np.zeros(len(similarity_fig["data"][0]["customdata"]))
+        
+        for j in range (len(similarity_fig["data"])):
+            # go through selected runs
+            
+            opacity_array = np.copy(template_array)
+            for i in range(len(selected_run_ids)):
+                
+                for k in range(len(similarity_fig["data"][j]["customdata"])):
+                    if similarity_fig["data"][j]["customdata"][k][0] == selected_run_ids[i]:
+                        selected_counter += 1
+                        np.put(opacity_array, k, 0.8)
+                    else:
+                        np.put(opacity_array, k, 1)
+
+            # go trough not selected runs
+            for i in range(len(not_selected_run_ids)):
+                for k in range(len(similarity_fig["data"][j]["customdata"])):
+                    if similarity_fig["data"][j]["customdata"][k][0] == not_selected_run_ids[i]:
+                        np.put(opacity_array, k, 0.1)
+                        not_selected_counter += 1
+            print(opacity_array)
+            similarity_fig["data"][j]["marker"]["opacity"] = opacity_array
+            #print(similarity_fig["data"][j]["marker"]["opacity"])
+        print("sim_fig found {0} selected runs, input was {1} runs".format(selected_counter, len(selected_runs_df)))
+        print("sim_fig found {0} not selected runs, input was {1} runs".format(not_selected_counter, len(not_selected_runs_df)))
 
 
-        for i in range(len(selected_run_ids)):
-            for j in range (len(similarity_figInput["data"])):
-                for k in range(len(similarity_figInput["data"][j]["customdata"][0])):
-                    if similarity_figInput["data"][j]["customdata"][0][k] == selected_run_ids[i]:
-                        selectedDataOutput["points"].append({"curveNumber": 0,
-                                                        "pointNumber": 0,
-                                                        "pointIndex": 0,
-                                                        "x": similarity_figInput["data"][j]["x"][k],
-                                                        "y": similarity_figInput["data"][j]["y"][k],
-                                                        })
-                        print("coordinates for selectedData",{ "x": similarity_figInput["data"][j]["x"][k],
-                                                        "y": similarity_figInput["data"][j]["y"][k]})
-                    
-
-        print(selectedDataOutput)
-        return similarity_figInput, selectedDataOutput, data.to_json(orient = "index")
+        return similarity_fig, data.to_json(orient = "index")
                     
 
 
@@ -270,14 +279,14 @@ def update_extendedview(selected_runs_json, not_selected_runs_json, acc_figInput
             for j in range(len(selected_run_ids)): #loop through all selected runs
                 for i in range(len(inputs[k]["data"])): #loop trough every line in current graph
                     if inputs[k]["data"][i]["name"] == selected_run_ids[j]:
-                        inputs[k]["data"][i]["opacity"] = 0.8
+                        inputs[k]["data"][i]["opacity"] = 0.9
                         inputs[k]["data"][i]["line"] = {"dash" : "solid", "width" : 10}
         
         for k in range(len(inputs)): #loop trough both graphs
             for i in range(len(inputs[k]["data"])): #loop trough every line in current graph
                 for j in range(len(not_selected_run_ids)): #loop through all selected runs
                     if inputs[k]["data"][i]["name"] == not_selected_run_ids[j]:
-                        inputs[k]["data"][i]["opacity"] = 0.2
+                        inputs[k]["data"][i]["opacity"] = 0.1
                         inputs[k]["data"][i]["line"] = {"dash" : "dot", "width" : 3}
         
             
@@ -345,9 +354,9 @@ def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, 
 
     current_df = pd.read_json(data, orient= "index")
 
-    print("sim_selectedData", sim_selectedData)
 
     if callback_context.triggered[0]['prop_id'].split('.')[0] == "similaritygraph":
+        print("callback 'update_selected_runs' triggered through sim_graph with {} runs".format(len(sim_selectedData["points"])))
         if(sim_selectedData != None):
             selected_x_coordinates = []
             selected_y_coordinates = []
@@ -355,7 +364,8 @@ def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, 
                 selected_x_coordinates.append(sim_selectedData["points"][i]["x"])
                 selected_y_coordinates.append(sim_selectedData["points"][i]["y"])
             selected_runs_df = current_df.loc[current_df["y"].isin(selected_y_coordinates) & current_df["x"].isin(selected_x_coordinates)]
-            not_selected_runs_df = current_df.loc[~current_df["y"].isin(selected_y_coordinates) & ~current_df["x"].isin(selected_x_coordinates)]
+            #not_selected_runs_df = current_df.loc[~current_df["y"].isin(selected_y_coordinates) & ~current_df["x"].isin(selected_x_coordinates)]
+            not_selected_runs_df = current_df.loc[~current_df["run_id"].isin(selected_runs_df["run_id"])]
 
             return selected_runs_df.to_json(orient = "index"), not_selected_runs_df.to_json(orient = "index")
         else:
@@ -365,10 +375,12 @@ def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, 
         log_df = None
         selectedData = []
         if callback_context.triggered[0]['prop_id'].split('.')[0]  == "accuracygraph":
+            print("callback 'update_selected_runs' triggered through acc_graph with {} runs".format(len(acc_selectedData["points"])))
             log_df = pd.read_json("assets/data/losslogs/scalars/acc.json", orient="index")
             selectedData = acc_selectedData
 
         if callback_context.triggered[0]['prop_id'].split('.')[0]  == "lossgraph":
+            print("callback 'update_selected_runs' triggered through loss_graph with {} runs".format(len(loss_selectedData["points"])))
             log_df = pd.read_json("assets/data/losslogs/scalars/loss.json", orient="index")
             selectedData = loss_selectedData
         selected_x_coordinates = []
@@ -380,11 +392,9 @@ def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, 
             selected_y_coordinates.append(selectedData["points"][i]["y"])
         
         selected_runs_df_log_format = log_df.loc[log_df["value"].isin(selected_y_coordinates) & (log_df["step"]+1).isin(selected_x_coordinates)]
-        not_selected_runs_df_log_format = log_df.loc[~log_df["value"].isin(selected_y_coordinates) & ~log_df["step"].isin(selected_x_coordinates)]
         selected_run_ids = selected_runs_df_log_format["run"].tolist()
-        not_selected_run_ids = not_selected_runs_df_log_format["run"].tolist()
         selected_runs_df = current_df.loc[current_df["run_id"].isin(selected_run_ids)]
-        not_selected_runs_df = current_df.loc[~current_df["run_id"].isin(not_selected_run_ids)]
+        not_selected_runs_df = current_df.loc[~current_df["run_id"].isin(selected_run_ids)]
         return selected_runs_df.to_json(orient = "index"), not_selected_runs_df.to_json(orient = "index")
 
 
