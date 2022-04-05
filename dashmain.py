@@ -22,6 +22,8 @@ def create_picture_options():
 
 
 
+
+
 app.layout = dbc.Container([
 dbc.NavbarSimple(color="primary",brand = "SIMILARITY PLOT OF UNET TRAININGS WITH DIFFERENT HYPERPARAMETERS", dark=True, style={"padding-left" : "3vh", "height" : "8vh"}),
 
@@ -93,11 +95,25 @@ dbc.Container([
                 dbc.Col([
                 dbc.Card([
                     dbc.CardBody([
-                        dbc.Col([
-                        html.Div(id="selected_run_table_header" , children=["Parameters"]),
+                        dbc.Row([
+                            dbc.Col([
+                                html.Div(id="hyperparameter_header" , children=["Hyperparameter"]),
+                                html.Div(id="bs_text" , children=["Batchsize"]),
+                                html.Div(id="lf_text" , children=["Lossfunction"]),
+                                html.Div(id="opt_text" , children=["Optimizer"]),
+                                html.Div(id="tf_text" , children=["Topologyfactor"]),
+                                html.Div(id="ki_text" , children=["Kernelinitialitzer"]),
 
-                        html.Div(id="selected_run_table"),
-                        ], style={"display" : "flex", "flex-direction" : "column", "align-items": "center"}),
+                            ]),
+                            dbc.Col([
+                                 html.Div(id="value_header" , children=["Value"]),
+                                 dcc.Dropdown(id ="bs_dropdown",options=create_picture_options(),value="0"),
+                                 dcc.Dropdown(id ="lf_dropdown",options=create_picture_options(),value="0"),
+                                 dcc.Dropdown(id ="opt_dropdown",options=create_picture_options(),value="0"),
+                                 dcc.Dropdown(id ="tf_dropdown",options=create_picture_options(),value="0"),
+                                 dcc.Dropdown(id ="ki_dropdown",options=create_picture_options(),value="0"),
+                            ]),
+                        ]),
                     ])
                 ], style={"marginTop" : "2vh"})
                 ], width = {"size" : 4}),
@@ -126,8 +142,7 @@ dbc.Container([
 ], style = {"margin" : 0, "padding-right" : 0, "padding-left" : 0, "min-width" : "100%"})
 
 #updates view of the predicted segmentation
-@app.callback([Output(component_id="pred_picture", component_property="src"),
-Output(component_id="selected_run_table", component_property="children")],
+@app.callback([Output(component_id="pred_picture", component_property="src")],
 [Input(component_id="similaritygraph",component_property="selectedData"),
 Input(component_id="selected_picture_id", component_property="value"),
 State(component_id="current_dataframe", component_property="data")],
@@ -145,32 +160,15 @@ def update_predicted_picture(selectedData, pic_id, data):
         if run_id_list:
             run_id = run_id_list[0]
             img_path = "/assets/images/resultsrun3/" + run_id + "/" + pic_id + "{0}.png".format("_predict")
-
-            #create table
-            split_id = run_id.split("-")
-            table_header = [html.Thead(html.Tr([html.Th("Hyperparameter"), html.Th("Value")]))]
-            row1 = html.Tr([html.Td("Batchsize"), html.Td(split_id[0][2:])])
-            row2 = html.Tr([html.Td("Lossfunction"), html.Td(split_id[1][2:], style={"width" : "18vh"})])
-            row3 = html.Tr([html.Td("Optimizer"), html.Td(split_id[2][3:])])
-            row4 = html.Tr([html.Td("Topologyfactor"), html.Td(split_id[3][2:])])
-            row5 = html.Tr([html.Td("Kernelinitializer"), html.Td(split_id[4][2:])])
-
-            table_body = [html.Tbody([row1, row2, row3, row4, row5])]
-
-            table = dbc.Table(table_header + table_body, bordered=True,class_name="table")
         else:
-            table = get_empty_table()
             img_path = "https://via.placeholder.com/250?text=Select+a+run"
 
-
-        return img_path, table
+        return [img_path]
     else: 
 
         img_path = "https://via.placeholder.com/250?text=Select+a+run"
 
-        table = get_empty_table()
-
-        return img_path, table
+        return [img_path]
 
 
 #updates view of the original picture
@@ -183,7 +181,63 @@ def update_original_picture(pic_id):
     img_path = "/assets/images/originals/" + pic_id + ".png"
     return [img_path]
 
-    
+
+#updates hyperparameter-table
+@app.callback([
+    Output(component_id="bs_dropdown", component_property="value"),
+    Output(component_id="lf_dropdown", component_property="value"),
+    Output(component_id="opt_dropdown", component_property="value"),
+    Output(component_id="tf_dropdown", component_property="value"),
+    Output(component_id="ki_dropdown", component_property="value")
+],[
+    Input(component_id="selected_runs", component_property="data"),
+    State(component_id="not_selected_runs", component_property="data"),
+], prevent_initial_call=True)
+
+def update_table(selected_runs_json, not_selected_runs_json):
+    triggering_component = callback_context.triggered[0]['prop_id'].split('.')[0]
+
+    #extract all unique hyperparameter options
+    bs_value, lf_value, opt_value, tf_value, ki_value = "","","","",""
+
+    if triggering_component != "":
+
+        #extract current run-ids
+        selected_run_ids, not_selected_run_ids = extract_current_ids(selected_runs_json,not_selected_runs_json)
+        if len(selected_run_ids) == 1:
+            selected_parameters = selected_run_ids[0].split("-")
+            bs_value = selected_parameters[0][2:]
+            lf_value = selected_parameters[1][2:]
+            opt_value = selected_parameters[2][3:]
+            tf_value = selected_parameters[3][2:]
+            ki_value = selected_parameters[4][2:]
+
+    return bs_value, lf_value, opt_value, tf_value, ki_value 
+
+#initializes the options for the hyperparameter table
+@app.callback([
+    Output(component_id="bs_dropdown", component_property="options"),
+    Output(component_id="lf_dropdown", component_property="options"),
+    Output(component_id="opt_dropdown", component_property="options"),
+    Output(component_id="tf_dropdown", component_property="options"),
+    Output(component_id="ki_dropdown", component_property="options")
+],[
+    Input(component_id="current_dataframe", component_property="data")
+], prevent_initial_call=True
+)
+
+def update_table_options(data):
+
+    current_df = pd.read_json(data, orient= "index")
+    bs_options = current_df["batchsize"].unique()
+    lf_options = current_df["lossfunction"].unique()
+    opt_options = current_df["optimizer"].unique()
+    tf_options = current_df["topologyfactor"].unique()
+    ki_options = current_df["kernelinitializer"].unique()
+
+    return bs_options,lf_options,opt_options,tf_options,ki_options
+
+
 
 #updates similaritygraph 
 @app.callback(
@@ -201,6 +255,7 @@ def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, not_selected_runs_
     data = pd.read_json("assets/data/embeddata/{0}/{1}.json".format(slctd_dim.lower(),slctd_pic_id), orient="index")
     triggering_component = callback_context.triggered[0]['prop_id'].split('.')[0]
 
+    #change similaritygraph from 2d to 3d or vice versa
     if slctd_dim == "3D":
         similarity_fig = px.scatter_3d(data,x="x",y="y",z="z",color="lossfunction", size="batchsize", symbol="optimizer", custom_data= ["run_id"])
         similarity_fig.update_layout(clickmode='event+select')
@@ -208,14 +263,13 @@ def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, not_selected_runs_
         similarity_fig = px.scatter(data,x="x",y="y",color="lossfunction", size="batchsize", symbol="optimizer", custom_data= ["run_id"])
         similarity_fig.update_layout(clickmode='event+select')
 
+    #if callback is called on page-load, change nothing
     if triggering_component == "":
         return similarity_fig, data.to_json(orient = "index")
     else:
         #extract current run-ids
-        selected_runs_df = pd.read_json(selected_runs_json, orient="index")
-        not_selected_runs_df = pd.read_json(not_selected_runs_json, orient="index")
-        selected_run_ids = selected_runs_df["run_id"].tolist()
-        not_selected_run_ids = not_selected_runs_df["run_id"].tolist()
+    
+        selected_run_ids, not_selected_run_ids = extract_current_ids(selected_runs_json,not_selected_runs_json)
 
         selected_counter = 0
         not_selected_counter = 0
@@ -240,11 +294,9 @@ def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, not_selected_runs_
                     if similarity_fig["data"][j]["customdata"][k][0] == not_selected_run_ids[i]:
                         np.put(opacity_array, k, 0.1)
                         not_selected_counter += 1
-            print(opacity_array)
             similarity_fig["data"][j]["marker"]["opacity"] = opacity_array
-            #print(similarity_fig["data"][j]["marker"]["opacity"])
-        print("sim_fig found {0} selected runs, input was {1} runs".format(selected_counter, len(selected_runs_df)))
-        print("sim_fig found {0} not selected runs, input was {1} runs".format(not_selected_counter, len(not_selected_runs_df)))
+        print("sim_fig found {0} selected runs, input was {1} runs".format(selected_counter, len(selected_run_ids)))
+        print("sim_fig found {0} not selected runs, input was {1} runs".format(not_selected_counter, len(not_selected_run_ids)))
 
 
         return similarity_fig, data.to_json(orient = "index")
@@ -268,10 +320,8 @@ def update_extendedview(selected_runs_json, not_selected_runs_json, acc_figInput
     #if something has been clicked
     if selected_runs_json != None:
         #extract current run-ids
-        selected_runs_df = pd.read_json(selected_runs_json, orient="index")
-        not_selected_runs_df = pd.read_json(not_selected_runs_json, orient="index")
-        selected_run_ids = selected_runs_df["run_id"].tolist()
-        not_selected_run_ids = not_selected_runs_df["run_id"].tolist()
+    
+        selected_run_ids, not_selected_run_ids = extract_current_ids(selected_runs_json,not_selected_runs_json)
        
         #iterate through both existing graphs, to find which line has been selected, then change its style
         inputs = [acc_figInput, loss_figInput]
@@ -340,22 +390,28 @@ def update_extendedview(selected_runs_json, not_selected_runs_json, acc_figInput
 
 
 
-#updates the selected runs when the similaritygraph changes
+#updates the selected runs when one of the components, which control selected runs, changes
 @app.callback(
     [Output(component_id="selected_runs", component_property="data"),
     Output(component_id="not_selected_runs", component_property="data")],
     [Input(component_id="similaritygraph",component_property="selectedData"),
     Input(component_id="accuracygraph",component_property="selectedData"),
     Input(component_id="lossgraph",component_property="selectedData"),
+    Input(component_id="bs_dropdown", component_property="value"),
+    Input(component_id="lf_dropdown", component_property="value"),
+    Input(component_id="opt_dropdown", component_property="value"),
+    Input(component_id="tf_dropdown", component_property="value"),
+    Input(component_id="ki_dropdown", component_property="value"),
     State(component_id="current_dataframe", component_property="data")], prevent_initial_call=True
 )
 
-def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, data):
+def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, bs_dropdown_value, lf_dropdown_value, opt_dropdown_value, tf_dropdown_value, ki_dropdown_value, data):
 
     current_df = pd.read_json(data, orient= "index")
 
+    triggering_component = callback_context.triggered[0]['prop_id'].split('.')[0]
 
-    if callback_context.triggered[0]['prop_id'].split('.')[0] == "similaritygraph":
+    if triggering_component == "similaritygraph":
         print("callback 'update_selected_runs' triggered through sim_graph with {} runs".format(len(sim_selectedData["points"])))
         if(sim_selectedData != None):
             selected_x_coordinates = []
@@ -364,22 +420,21 @@ def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, 
                 selected_x_coordinates.append(sim_selectedData["points"][i]["x"])
                 selected_y_coordinates.append(sim_selectedData["points"][i]["y"])
             selected_runs_df = current_df.loc[current_df["y"].isin(selected_y_coordinates) & current_df["x"].isin(selected_x_coordinates)]
-            #not_selected_runs_df = current_df.loc[~current_df["y"].isin(selected_y_coordinates) & ~current_df["x"].isin(selected_x_coordinates)]
             not_selected_runs_df = current_df.loc[~current_df["run_id"].isin(selected_runs_df["run_id"])]
 
             return selected_runs_df.to_json(orient = "index"), not_selected_runs_df.to_json(orient = "index")
         else:
             return None, None
     
-    else: 
+    elif triggering_component  == "accuracygraph" or triggering_component  == "lossgraph": 
         log_df = None
         selectedData = []
-        if callback_context.triggered[0]['prop_id'].split('.')[0]  == "accuracygraph":
+        if triggering_component  == "accuracygraph":
             print("callback 'update_selected_runs' triggered through acc_graph with {} runs".format(len(acc_selectedData["points"])))
             log_df = pd.read_json("assets/data/losslogs/scalars/acc.json", orient="index")
             selectedData = acc_selectedData
 
-        if callback_context.triggered[0]['prop_id'].split('.')[0]  == "lossgraph":
+        if triggering_component  == "lossgraph":
             print("callback 'update_selected_runs' triggered through loss_graph with {} runs".format(len(loss_selectedData["points"])))
             log_df = pd.read_json("assets/data/losslogs/scalars/loss.json", orient="index")
             selectedData = loss_selectedData
@@ -396,25 +451,21 @@ def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, 
         selected_runs_df = current_df.loc[current_df["run_id"].isin(selected_run_ids)]
         not_selected_runs_df = current_df.loc[~current_df["run_id"].isin(selected_run_ids)]
         return selected_runs_df.to_json(orient = "index"), not_selected_runs_df.to_json(orient = "index")
+    else:
+        selected_run_ids = []
+        selected_run_ids.append("bs" + bs_dropdown_value + "lf" + lf_dropdown_value + "opt" + opt_dropdown_value + "tf" + tf_dropdown_value + "ki" + ki_dropdown_value)
+        selected_runs_df = current_df.loc[current_df["run_id"].isin(selected_run_ids)]
+        not_selected_runs_df = current_df.loc[~current_df["run_id"].isin(selected_run_ids)]
+        return selected_runs_df.to_json(orient = "index"), not_selected_runs_df.to_json(orient = "index")
+        
 
 
-
-def get_empty_table():
-    img_path = "https://via.placeholder.com/250?text=Select+a+run"
-
-    table_header = [html.Thead(html.Tr([html.Th("Hyperparameter"), html.Th("Value")]))]
-    row1 = html.Tr([html.Td("Batchsize"), html.Td("")])
-    row2 = html.Tr([html.Td("Lossfunction"), html.Td("", style={"width" : "18vh"})])
-    row3 = html.Tr([html.Td("Optimizer"), html.Td("")])
-    row4 = html.Tr([html.Td("Topologyfactor"), html.Td("")])
-    row5 = html.Tr([html.Td("Kernelinitializer"), html.Td("")])
-
-    table_body = [html.Tbody([row1, row2, row3, row4, row5])]
-
-    table = dbc.Table(table_header + table_body, bordered=True,class_name="table")
-    
-    return table
-
+def extract_current_ids(selected_runs_json, not_selected_runs_json):
+    selected_runs_df = pd.read_json(selected_runs_json, orient="index")
+    not_selected_runs_df = pd.read_json(not_selected_runs_json, orient="index")
+    selected_run_ids = selected_runs_df["run_id"].tolist()
+    not_selected_run_ids = not_selected_runs_df["run_id"].tolist()
+    return selected_run_ids, not_selected_run_ids
 
 if __name__ == '__main__':
     app.run_server(debug=True)
