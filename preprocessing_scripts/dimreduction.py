@@ -3,11 +3,12 @@ from keras.preprocessing.image import load_img
 from keras.applications.vgg16 import preprocess_input 
 from keras.applications.vgg16 import VGG16 
 from keras.applications.resnet_v2 import ResNet101V2
+from keras.applications.inception_v3 import InceptionV3
 from keras.models import Model
 import tensorflow as tf
 from keras.applications.imagenet_utils import decode_predictions
 
-
+from keras_segmentation.pretrained import pspnet_50_ADE_20K
 
 import os
 import argparse
@@ -27,8 +28,8 @@ import matplotlib.image as mpimg
 
 
 filepath= "C:/Users/momok/Desktop/Bachelorarbeit/dev/results/run3/results"
-groundtruthpath = "C:/Users/momok/Desktop/Bachelorarbeit/dev/UNet/unet/data/membrane/train/label"
-jsonpath = "C:/Users/momok/Desktop/Bachelorarbeit/dev/results/run3/jsondata"
+groundtruthpath = "C:/Users/momok/Desktop/Bachelorarbeit/test-labels/test-labels-0"
+jsonpath = "C:/Users/momok/Desktop/Bachelorarbeit/test-labels/similarity_plots"
 csvpath = "C:/Users/momok/Desktop/Bachelorarbeit/dev/results/csvdata"
 
 
@@ -75,12 +76,14 @@ def get_identifiers():
 
 #preprocesses the images and returns the prediction the given model made
 def extract_features(file, model):
-    img = load_img(file, target_size=(224,224), interpolation="bicubic",color_mode="grayscale")
+    #img = load_img(file, target_size=(224,224), interpolation="bicubic",color_mode="grayscale")
+    img = load_img(file, target_size=(473,473), interpolation="bicubic",color_mode="grayscale")
     img = np.array(img)
     #check if image is only one color (faulty run)
     #if np.all(img == img[0]):
         #print(file)
-    reshaped_img = img.reshape(1,224,224) 
+    #reshaped_img = img.reshape(1,224,224) 
+    reshaped_img = img.reshape(1,473,473) 
     #add 2 fake color channels to fit the model requirements
     rgb_img = np.repeat(reshaped_img[..., np.newaxis], 3, -1)
     imgx = preprocess_input(rgb_img)
@@ -98,7 +101,7 @@ def reduce_dimensionality(features, dimensions,method = "umap"):
         umap_proj_3d = umap_3d.fit_transform(features)
         plotdatalist = umap_proj_3d.tolist()
     elif method == "umap":
-        umap_2d = umap.UMAP()
+        umap_2d = umap.UMAP(random_state=42)
         umap_proj_2d = umap_2d.fit_transform(features)
         plotdatalist = umap_proj_2d.tolist()
     elif method =="pca":
@@ -130,13 +133,22 @@ def reduce_dimensionality(features, dimensions,method = "umap"):
         plotdatalist[i].insert(insert_index + 6,float(split_ids[3].replace("tf","")))
         plotdatalist[i].insert(insert_index + 7,split_ids[4].replace("ki",""))
 
+    #insert truth info into the plotdatalist
+    truth_index = len(identifiers)
+    plotdatalist[truth_index].insert(insert_index + 2, "truth")
+    plotdatalist[truth_index].insert(insert_index + 3, int(20))
+    plotdatalist[truth_index].insert(insert_index + 4, "truth")
+    plotdatalist[truth_index].insert(insert_index + 5, "truth")
+    plotdatalist[truth_index].insert(insert_index + 6, float(0))
+    plotdatalist[truth_index].insert(insert_index + 7, "truth")
+
 
 
     return plotdatalist
 
 parser = argparse.ArgumentParser(description='set paramaters for feature extraction and dimensionality reduction')
-parser.add_argument('-id' , metavar='id', nargs='?', default=25, const=25, help='picture id')
-parser.add_argument('-d', '--dimensions', metavar='dimensions', type=int, nargs='?', default=3, const=3, help='data gets reduced to d dimensions. 3d is only possible in combination with method umap')
+parser.add_argument('-id' , metavar='id', nargs='?', default=0, const=0, help='picture id')
+parser.add_argument('-d', '--dimensions', metavar='dimensions', type=int, nargs='?', default=2, const=2, help='data gets reduced to d dimensions. 3d is only possible in combination with method umap')
 parser.add_argument('-m', '--method' , metavar='method', type=str, nargs='?', default="umap", const="umap", help='method for dimensionality reduction. Options: umap, tsne, pca')
 args = parser.parse_args()
 
@@ -144,11 +156,14 @@ picture_id = str(args.id)
 dimensions = args.dimensions
 method = args.method
 
-
-model = VGG16(weights="imagenet")
+model = pspnet_50_ADE_20K()
+#model = ResNet101V2(include_top=False)
+#model = VGG16(weights="imagenet", include_top=False)
+#model = InceptionV3(include_top=False)
 #remove last layers to access featurevectors
 
 model = Model(inputs = model.inputs, outputs = model.layers[-2].output)
+#model = Model(inputs = model.inputs, outputs = model.get_layer("conv5_4").output)
 
 feature_vectors = []
 
@@ -157,6 +172,11 @@ identifiers = get_identifiers()
 for id in identifiers:
     vector = extract_features(os.path.join(filepath, id, picture_id +"_predict.png"),model)
     feature_vectors.append(vector)
+
+#get features for ground truth
+truth_vector = extract_features(os.path.join(groundtruthpath,"test-labels-"+ picture_id + ".png"),model)
+feature_vectors.append(truth_vector)
+feature_vectors_np = np.array(feature_vectors)
 
 feature_vectors_np = np.array(feature_vectors)
 
@@ -167,12 +187,12 @@ data_to_plot = reduce_dimensionality(feature_vectors_np, dimensions, method = me
 
 if dimensions == 3:
     plotdatadf = pd.DataFrame(data_to_plot, columns=["x","y","z","run_id","batchsize","lossfunction","optimizer","topologyfactor","kernelinitializer"])
-    #fig = px.scatter_3d(plotdatadf,x="x",y="y",z="z",color="lossfunction", size="batchsize", symbol="optimizer", text="run_id")
+    fig = px.scatter_3d(plotdatadf,x="x",y="y",z="z",color="lossfunction", size="batchsize", symbol="optimizer")
 else:
     plotdatadf = pd.DataFrame(data_to_plot, columns=["x","y","run_id","batchsize","lossfunction","optimizer","topologyfactor","kernelinitializer"])
-    #fig = px.scatter(plotdatadf,x="x",y="y",color="lossfunction", size="batchsize", symbol="optimizer", text="run_id")
+    fig = px.scatter(plotdatadf,x="x",y="y",color="lossfunction", size="batchsize", symbol="optimizer", text="run_id")
 
+fig.show()
 
-
-plotdatadf.to_json(orient ="index", path_or_buf= os.path.join(jsonpath,"{}d".format(dimensions), picture_id + ".json"))
+#plotdatadf.to_json(orient ="index", path_or_buf= os.path.join(jsonpath,"{}d".format(dimensions), picture_id + ".json"))
 #plotdatadf.to_csv(path_or_buf= os.path.join(csvpath,"{}d".format(dimensions), picture_id + ".csv"))

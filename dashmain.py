@@ -293,7 +293,8 @@ def update_current_dataframe(selected_picture_id, selected_dimension):
 
 def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, not_selected_runs_json, similarity_fig):
 
-    data = pd.read_json("assets/data/embeddata/{0}/{1}.json".format(slctd_dim.lower(),slctd_pic_id), orient="index")
+    data = pd.read_json("C:/Users/momok/Desktop/Bachelorarbeit/test-labels/similarity_plots/{0}/{1}.json".format(slctd_dim.lower(),slctd_pic_id), orient="index")
+    #data = pd.read_json("assets/data/embeddata/{0}/{1}.json".format(slctd_dim.lower(),slctd_pic_id), orient="index")
     triggering_component = callback_context.triggered[0]['prop_id'].split('.')[0]
     print("callback 'update_graph' triggered by {}".format(triggering_component if triggering_component != "" else "initial callback"))
 
@@ -306,7 +307,7 @@ def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, not_selected_runs_
         similarity_fig.update_layout(clickmode='event+select')
 
     #if callback is called on page-load, change nothing
-    if triggering_component == "":
+    if triggering_component == "" or "selected_picture_id":
         return [similarity_fig]
     else:
         #extract current run-ids
