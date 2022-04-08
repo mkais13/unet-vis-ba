@@ -1,4 +1,5 @@
  
+from sre_constants import CATEGORY_UNI_NOT_LINEBREAK
 from keras.preprocessing.image import load_img 
 from keras.applications.vgg16 import preprocess_input 
 from keras.applications.vgg16 import VGG16 
@@ -8,7 +9,7 @@ from keras.models import Model
 import tensorflow as tf
 from keras.applications.imagenet_utils import decode_predictions
 
-from keras_segmentation.pretrained import pspnet_50_ADE_20K
+from keras_segmentation.pretrained import pspnet_50_ADE_20K, pspnet_101_cityscapes, pspnet_101_voc12
 
 import os
 import argparse
@@ -28,7 +29,7 @@ import matplotlib.image as mpimg
 
 
 filepath= "C:/Users/momok/Desktop/Bachelorarbeit/dev/results/run3/results"
-groundtruthpath = "C:/Users/momok/Desktop/Bachelorarbeit/test-labels/test-labels-0"
+groundtruthpath = "C:/Users/momok/Desktop/Bachelorarbeit/test-labels/test-labels-0-256"
 jsonpath = "C:/Users/momok/Desktop/Bachelorarbeit/test-labels/similarity_plots"
 csvpath = "C:/Users/momok/Desktop/Bachelorarbeit/dev/results/csvdata"
 
@@ -78,16 +79,21 @@ def get_identifiers():
 def extract_features(file, model):
     #img = load_img(file, target_size=(224,224), interpolation="bicubic",color_mode="grayscale")
     img = load_img(file, target_size=(473,473), interpolation="bicubic",color_mode="grayscale")
+    #img = load_img(file, target_size=(713,713), interpolation="bicubic",color_mode="grayscale")
+    print("image loaded")
     img = np.array(img)
     #check if image is only one color (faulty run)
     #if np.all(img == img[0]):
         #print(file)
     #reshaped_img = img.reshape(1,224,224) 
     reshaped_img = img.reshape(1,473,473) 
+    #reshaped_img = img.reshape(1,713,713) 
+    print("image reshaped")
     #add 2 fake color channels to fit the model requirements
     rgb_img = np.repeat(reshaped_img[..., np.newaxis], 3, -1)
-    imgx = preprocess_input(rgb_img)
-    features = model.predict(imgx, use_multiprocessing=False)
+    #imgx = preprocess_input(rgb_img)
+    
+    features = model.predict(rgb_img, use_multiprocessing=True)
     result = tf.reshape(features[0],( -1,))
     return result
 
@@ -156,22 +162,28 @@ picture_id = str(args.id)
 dimensions = args.dimensions
 method = args.method
 
+#model = pspnet_101_voc12()
+#model = pspnet_101_cityscapes()
 model = pspnet_50_ADE_20K()
 #model = ResNet101V2(include_top=False)
-#model = VGG16(weights="imagenet", include_top=False)
+#model = VGG16(weights="imagenet")
 #model = InceptionV3(include_top=False)
 #remove last layers to access featurevectors
 
-model = Model(inputs = model.inputs, outputs = model.layers[-2].output)
+#model = Model(inputs = model.inputs, outputs = model.layers[-2].output)
 #model = Model(inputs = model.inputs, outputs = model.get_layer("conv5_4").output)
+model = Model(inputs = model.inputs, outputs = model.get_layer("conv6").output)
 
 feature_vectors = []
 
 identifiers = get_identifiers()
+counter = 0
 #extract features for every run
 for id in identifiers:
     vector = extract_features(os.path.join(filepath, id, picture_id +"_predict.png"),model)
     feature_vectors.append(vector)
+    print("prediction for {} done".format(counter))
+    counter += 1
 
 #get features for ground truth
 truth_vector = extract_features(os.path.join(groundtruthpath,"test-labels-"+ picture_id + ".png"),model)
