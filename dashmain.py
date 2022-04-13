@@ -150,7 +150,9 @@ dbc.Container([
     dcc.Store(id="current_dataframe"),
     dcc.Store(id="selected_runs"),
     dcc.Store(id="not_selected_runs"),
-    dcc.Store(id="change-triggered-by-checkboxes")
+    dcc.Store(id="change_triggered_by_checkboxes"),
+    dcc.Store(id="change_triggered_by_similaritygraph")
+    
 ], style={ "padding" : "2vh", "min-width" : "inherit"})
 
 ], style = {"margin" : 0, "padding-right" : 0, "padding-left" : 0, "min-width" : "100%"})
@@ -174,7 +176,8 @@ def update_predicted_picture(selectedData, pic_id, data):
         run_id_list = run_id_df.to_list()
         if run_id_list:
             run_id = run_id_list[0]
-            img_path = "/assets/images/resultsrun3/" + run_id + "/" + pic_id + "{0}.png".format("_predict")
+            print("run_id in update predicted pic:", run_id)
+            img_path = "/assets/images/resultsrun3/" + run_id + "/" + pic_id + "{0}.png".format("_predict" if run_id != "truth" else "")
         else:
             img_path = "https://via.placeholder.com/250?text=Select+a+run"
 
@@ -208,7 +211,7 @@ def update_original_picture(pic_id):
 ],[
     Input(component_id="selected_runs", component_property="data"),
     State(component_id="not_selected_runs", component_property="data"),
-    State(component_id="change-triggered-by-checkboxes", component_property="data")
+    State(component_id="change_triggered_by_checkboxes", component_property="data")
 ], prevent_initial_call=True)
 
 def update_table(selected_runs_json, not_selected_runs_json, triggered_by_checkboxes):
@@ -218,16 +221,24 @@ def update_table(selected_runs_json, not_selected_runs_json, triggered_by_checkb
 
     print("callback 'update_table' triggered by a change in 'selected_runs'")
     triggering_component = callback_context.triggered[0]['prop_id'].split('.')[0]
-
+    print("triggering component in update_table:", triggering_component)
     #extract all unique hyperparameter options
     bs_value, lf_value, opt_value, tf_value, ki_value = "","","","",""
 
-    if triggering_component != "":
+  
 
-        #extract current run-ids
-        selected_run_ids, not_selected_run_ids = extract_current_ids(selected_runs_json,not_selected_runs_json)
-        if len(selected_run_ids) == 1:
-            selected_parameters = selected_run_ids[0].split("-")
+    #extract current run-ids
+    selected_run_ids, not_selected_run_ids = extract_current_ids(selected_runs_json,not_selected_runs_json)
+    print("len(selected_run_ids) in update_table:", len(selected_run_ids))
+    if len(selected_run_ids) == 1:
+        selected_parameters = selected_run_ids[0].split("-")
+        if selected_parameters[0] == "truth":
+            bs_value = "20"
+            lf_value = "truth"
+            opt_value = "truth"
+            tf_value = "0.0"
+            ki_value = "truth"
+        else:
             bs_value = selected_parameters[0][2:]
             lf_value = selected_parameters[1][2:]
             opt_value = selected_parameters[2][3:]
@@ -275,7 +286,9 @@ def update_table_options(data):
 
 def update_current_dataframe(selected_picture_id, selected_dimension):
     #simple read and return
-    data = pd.read_json("assets/data/embeddata/{0}/{1}.json".format(selected_dimension.lower(),selected_picture_id), orient="index")
+    #datapath= "assets/data/embeddata/{0}/{1}.json".format(selected_dimension.lower(),selected_picture_id)
+    datapath = "assets/data/embeddata/2d pspnet_50_ADE_20K(-1)/{0}.json".format(selected_picture_id)
+    data = pd.read_json(datapath, orient="index")
     return [data.to_json(orient = "index")]
 
 
@@ -288,14 +301,20 @@ def update_current_dataframe(selected_picture_id, selected_dimension):
     Input(component_id="selected_dimension", component_property="value"),
     Input(component_id="selected_runs", component_property="data"),
     Input(component_id="not_selected_runs", component_property="data"),
-    State(component_id="similaritygraph", component_property="figure")
+    State(component_id="similaritygraph", component_property="figure"),
+    State(component_id="current_dataframe", component_property="data")
 ])
 
-def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, not_selected_runs_json, similarity_fig):
-
-    data = pd.read_json("C:/Users/momok/Desktop/Bachelorarbeit/test-labels/similarity_plots/{0}/{1}.json".format(slctd_dim.lower(),slctd_pic_id), orient="index")
-    #data = pd.read_json("assets/data/embeddata/{0}/{1}.json".format(slctd_dim.lower(),slctd_pic_id), orient="index")
+def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, not_selected_runs_json, similarity_fig, dataframe):
     triggering_component = callback_context.triggered[0]['prop_id'].split('.')[0]
+    if triggering_component == "":
+        #datapath = "assets/data/embeddata/{0}/{1}.json".format(slctd_dim.lower(),slctd_pic_id)
+        datapath = "assets/data/embeddata/2d pspnet_50_ADE_20K(-1)/{0}.json".format(slctd_pic_id)
+        data = pd.read_json("assets/data/embeddata/2d pspnet_50_ADE_20K(-1)/{1}.json".format(slctd_dim.lower(),slctd_pic_id), orient="index")    
+    else:
+        data = pd.read_json(dataframe, orient="index")
+    #data = pd.read_json("assets/data/embeddata/{0}/{1}.json".format(slctd_dim.lower(),slctd_pic_id), orient="index")
+    
     print("callback 'update_graph' triggered by {}".format(triggering_component if triggering_component != "" else "initial callback"))
 
     #change similaritygraph from 2d to 3d or vice versa
@@ -307,13 +326,16 @@ def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, not_selected_runs_
         similarity_fig.update_layout(clickmode='event+select')
 
     #if callback is called on page-load, change nothing
-    if triggering_component == "" or "selected_picture_id":
+    if (triggering_component == "" or triggering_component == "selected_picture_id"):
+        print("xd")
         return [similarity_fig]
     else:
         #extract current run-ids
-    
+       
+        
         selected_run_ids, not_selected_run_ids = extract_current_ids(selected_runs_json,not_selected_runs_json)
-
+        
+        
         selected_counter = 0
         not_selected_counter = 0
         template_array = np.zeros(len(similarity_fig["data"][0]["customdata"]))
@@ -364,9 +386,7 @@ def update_extendedview(selected_runs_json, not_selected_runs_json, acc_figInput
     #if something has been clicked
     if selected_runs_json != None:
         #extract current run-ids
-    
         selected_run_ids, not_selected_run_ids = extract_current_ids(selected_runs_json,not_selected_runs_json)
-       
         #iterate through both existing graphs, to find which line has been selected, then change its style
         inputs = [acc_figInput, loss_figInput]
         for k in range(len(inputs)): #loop trough both graphs
@@ -438,7 +458,7 @@ def update_extendedview(selected_runs_json, not_selected_runs_json, acc_figInput
 @app.callback(
     [Output(component_id="selected_runs", component_property="data"),
     Output(component_id="not_selected_runs", component_property="data"),
-    Output(component_id="change-triggered-by-checkboxes", component_property="data")],
+    Output(component_id="change_triggered_by_checkboxes", component_property="data")],
     [Input(component_id="similaritygraph",component_property="selectedData"),
     Input(component_id="accuracygraph",component_property="selectedData"),
     Input(component_id="lossgraph",component_property="selectedData"),
@@ -480,7 +500,7 @@ def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, 
             return selected_runs_df.to_json(orient = "index"), not_selected_runs_df.to_json(orient = "index"), False
 
         else:
-            return None, None, False
+            return dash.no_update, dash.no_update, False
 
 
 
@@ -521,7 +541,7 @@ def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, 
         #in case of the dropdowns has no value selected
         if(None in dropdown_values):
             print("callback 'update_selected_runs' triggered by one of the dropdowns, BUT at least one value was 'None'")
-            return dash.no_update, dash.no_update
+            return dash.no_update, dash.no_update, dash.no_update
         else:
             print("callback 'update_selected_runs' triggered by one of the dropdowns")
             selected_run_ids = []
@@ -536,7 +556,7 @@ def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, 
     #callback triggered by one of the checkboxes or a change in one of the dropdowns
     else:
         #(triggering_component == "checklist_input"):
-        print("callback 'update_selected_runs' triggered by one of the checkboxes or a change in one of the dropdowns")
+        print("callback 'update_selected_runs' triggered by one of the checkboxes or a change in one of the dropdowns while a checkbox was checked")
         #dict to match checkbox value to the corresponding dropdown
         hp_switcher = {
             "bs" : bs_dropdown_value,
@@ -547,6 +567,19 @@ def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, 
         }
         checkbox_without_corresponding_value = False
         checked_values = {}
+        #check if no checkbox is checked, which means the last checked one was unselected
+        if(len(checklist_value) == 0):
+            #do the same as in the case of one dropdowns being changed
+            selected_run_ids = []
+            tf_dropdown_value = float(tf_dropdown_value)
+            #stitch the run-id back together from the selected values in the dropdowns
+            selected_run_ids.append("bs" + str(bs_dropdown_value) + "-lf" + str(lf_dropdown_value) + "-opt" + str(opt_dropdown_value) + "-tf" + str(tf_dropdown_value) + "-ki" + str(ki_dropdown_value))
+            #find that run in the current dataframe
+            selected_runs_df = current_df.loc[current_df["run_id"].isin(selected_run_ids)]
+            #save all runs except the one found
+            not_selected_runs_df = current_df.loc[~current_df["run_id"].isin(selected_run_ids)]
+            return selected_runs_df.to_json(orient = "index"), not_selected_runs_df.to_json(orient = "index"), False
+        
         #loop through all selected checkboxes to see if one has None-value in its corresponding dropdown
         for i in range(len(checklist_value)):
             dropdown_value = hp_switcher.get(checklist_value[i])
@@ -574,13 +607,15 @@ def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, 
             not_selected_runs_df = current_df.merge(selected_runs_df, indicator=True, how="left")[lambda x: x._merge=='left_only'].drop('_merge',1)
             return selected_runs_df.to_json(orient = "index"), not_selected_runs_df.to_json(orient = "index"), True
             
-            
 
 def extract_current_ids(selected_runs_json, not_selected_runs_json):
     selected_runs_df = pd.read_json(selected_runs_json, orient="index")
     not_selected_runs_df = pd.read_json(not_selected_runs_json, orient="index")
     selected_run_ids = selected_runs_df["run_id"].tolist()
-    not_selected_run_ids = not_selected_runs_df["run_id"].tolist()
+    if not_selected_runs_df.empty:
+        not_selected_run_ids = []
+    else:    
+        not_selected_run_ids = not_selected_runs_df["run_id"].tolist()
     return selected_run_ids, not_selected_run_ids
 
 def switch_hyperparameter(shortform):

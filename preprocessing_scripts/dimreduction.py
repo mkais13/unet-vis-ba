@@ -28,9 +28,9 @@ import matplotlib.image as mpimg
 
 
 
-filepath= "C:/Users/momok/Desktop/Bachelorarbeit/dev/results/run3/results"
+filepath= "C:/Users/momok/Desktop/Bachelorarbeit/dev/vis/assets/images/resultsrun3"
 groundtruthpath = "C:/Users/momok/Desktop/Bachelorarbeit/test-labels/test-labels-0-256"
-jsonpath = "C:/Users/momok/Desktop/Bachelorarbeit/test-labels/similarity_plots"
+jsonpath = "C:/Users/momok/Desktop/Bachelorarbeit/test-labels/similarity_plots/2d pspnet_50_ADE_20K(-1)"
 csvpath = "C:/Users/momok/Desktop/Bachelorarbeit/dev/results/csvdata"
 
 
@@ -78,7 +78,7 @@ def get_identifiers():
 #preprocesses the images and returns the prediction the given model made
 def extract_features(file, model):
     #img = load_img(file, target_size=(224,224), interpolation="bicubic",color_mode="grayscale")
-    img = load_img(file, target_size=(473,473), interpolation="bicubic",color_mode="grayscale")
+    img = load_img(file, target_size=(473,473), interpolation="nearest",color_mode="grayscale")
     #img = load_img(file, target_size=(713,713), interpolation="bicubic",color_mode="grayscale")
     print("image loaded")
     img = np.array(img)
@@ -153,14 +153,15 @@ def reduce_dimensionality(features, dimensions,method = "umap"):
     return plotdatalist
 
 parser = argparse.ArgumentParser(description='set paramaters for feature extraction and dimensionality reduction')
-parser.add_argument('-id' , metavar='id', nargs='?', default=0, const=0, help='picture id')
+parser.add_argument('-id' , metavar='id', nargs='?', default=23, const=23, help='picture id')
 parser.add_argument('-d', '--dimensions', metavar='dimensions', type=int, nargs='?', default=2, const=2, help='data gets reduced to d dimensions. 3d is only possible in combination with method umap')
 parser.add_argument('-m', '--method' , metavar='method', type=str, nargs='?', default="umap", const="umap", help='method for dimensionality reduction. Options: umap, tsne, pca')
 args = parser.parse_args()
 
 picture_id = str(args.id)
+print("calculating picture {}".format(args.id))
 dimensions = args.dimensions
-method = args.method
+method = args.method  
 
 #model = pspnet_101_voc12()
 #model = pspnet_101_cityscapes()
@@ -170,9 +171,9 @@ model = pspnet_50_ADE_20K()
 #model = InceptionV3(include_top=False)
 #remove last layers to access featurevectors
 
-#model = Model(inputs = model.inputs, outputs = model.layers[-2].output)
+model = Model(inputs = model.inputs, outputs = model.layers[-1].output)
 #model = Model(inputs = model.inputs, outputs = model.get_layer("conv5_4").output)
-model = Model(inputs = model.inputs, outputs = model.get_layer("conv6").output)
+#model = Model(inputs = model.inputs, outputs = model.get_layer("conv6").output)
 
 feature_vectors = []
 
@@ -188,10 +189,10 @@ for id in identifiers:
 #get features for ground truth
 truth_vector = extract_features(os.path.join(groundtruthpath,"test-labels-"+ picture_id + ".png"),model)
 feature_vectors.append(truth_vector)
-feature_vectors_np = np.array(feature_vectors)
 
+print("making np array")
 feature_vectors_np = np.array(feature_vectors)
-
+print("starting to reduce dimensions")
 data_to_plot = reduce_dimensionality(feature_vectors_np, dimensions, method = method)
  
 
@@ -202,9 +203,10 @@ if dimensions == 3:
     fig = px.scatter_3d(plotdatadf,x="x",y="y",z="z",color="lossfunction", size="batchsize", symbol="optimizer")
 else:
     plotdatadf = pd.DataFrame(data_to_plot, columns=["x","y","run_id","batchsize","lossfunction","optimizer","topologyfactor","kernelinitializer"])
-    fig = px.scatter(plotdatadf,x="x",y="y",color="lossfunction", size="batchsize", symbol="optimizer", text="run_id")
+    #print("plotdatadf:", plotdatadf)
+    fig = px.scatter(plotdatadf,x="x",y="y",color="lossfunction", size="batchsize", symbol="optimizer")
 
-fig.show()
+#fig.show()
 
-#plotdatadf.to_json(orient ="index", path_or_buf= os.path.join(jsonpath,"{}d".format(dimensions), picture_id + ".json"))
+plotdatadf.to_json(orient ="index", path_or_buf= os.path.join(jsonpath, picture_id + ".json"))
 #plotdatadf.to_csv(path_or_buf= os.path.join(csvpath,"{}d".format(dimensions), picture_id + ".csv"))
