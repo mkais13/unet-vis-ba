@@ -307,12 +307,9 @@ def update_current_dataframe(selected_picture_id, selected_dimension):
 
 def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, not_selected_runs_json, similarity_fig, dataframe):
     triggering_component = callback_context.triggered[0]['prop_id'].split('.')[0]
-    if triggering_component == "":
-        #datapath = "assets/data/embeddata/{0}/{1}.json".format(slctd_dim.lower(),slctd_pic_id)
-        datapath = "assets/data/embeddata/2d pspnet_50_ADE_20K(-1)/{0}.json".format(slctd_pic_id)
-        data = pd.read_json("assets/data/embeddata/2d pspnet_50_ADE_20K(-1)/{1}.json".format(slctd_dim.lower(),slctd_pic_id), orient="index")    
-    else:
-        data = pd.read_json(dataframe, orient="index")
+    
+    datapath = "assets/data/embeddata/2d pspnet_50_ADE_20K(-1)/{0}.json".format(slctd_pic_id)
+    data = pd.read_json(datapath, orient="index")  
     #data = pd.read_json("assets/data/embeddata/{0}/{1}.json".format(slctd_dim.lower(),slctd_pic_id), orient="index")
     
     print("callback 'update_graph' triggered by {}".format(triggering_component if triggering_component != "" else "initial callback"))
@@ -326,8 +323,7 @@ def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, not_selected_runs_
         similarity_fig.update_layout(clickmode='event+select')
 
     #if callback is called on page-load, change nothing
-    if (triggering_component == "" or triggering_component == "selected_picture_id"):
-        print("xd")
+    if (triggering_component == "" ):
         return [similarity_fig]
     else:
         #extract current run-ids
@@ -394,14 +390,14 @@ def update_extendedview(selected_runs_json, not_selected_runs_json, acc_figInput
                 for i in range(len(inputs[k]["data"])): #loop trough every line in current graph
                     if inputs[k]["data"][i]["name"] == selected_run_ids[j]:
                         inputs[k]["data"][i]["opacity"] = 0.9
-                        inputs[k]["data"][i]["line"] = {"dash" : "solid", "width" : 10}
+                        inputs[k]["data"][i]["line"] = {"dash" : "solid", "width" : 10, "color" : inputs[k]["data"][i]["line"]["color"]} #change dash and width, but keep the color scheme
         
         for k in range(len(inputs)): #loop trough both graphs
             for i in range(len(inputs[k]["data"])): #loop trough every line in current graph
                 for j in range(len(not_selected_run_ids)): #loop through all selected runs
                     if inputs[k]["data"][i]["name"] == not_selected_run_ids[j]:
                         inputs[k]["data"][i]["opacity"] = 0.1
-                        inputs[k]["data"][i]["line"] = {"dash" : "dot", "width" : 3}
+                        inputs[k]["data"][i]["line"] = {"dash" : "dot", "width" : 3, "color" : inputs[k]["data"][i]["line"]["color"]} #change dash and width, but keep the color scheme
         
             
             
@@ -432,8 +428,15 @@ def update_extendedview(selected_runs_json, not_selected_runs_json, acc_figInput
                 acc_valuelist.append(acc_data_list_singlerun[i][3])
                 loss_valuelist.append(loss_data_list_singlerun[i][3])
             #add one line per run to the plot
-            accuracy_fig.add_scatter(x=step, y=acc_valuelist, name=acc_data_list_singlerun[0][0], showlegend = False, hovertext=acc_data_list_singlerun[0][0])
-            loss_fig.add_scatter(x=step, y=loss_valuelist, name=loss_data_list_singlerun[0][0], showlegend = False, hovertext=loss_data_list_singlerun[0][0])
+            lossfunction = acc_data_list_singlerun[0][0].split("-")[1][2:]
+            getcolor = {
+                "msssim": "#00CC96",
+                "mean_squared_error": "#636EFA",
+                "binary_crossentropy" : "#EF553B",
+            }
+            accuracy_fig.add_scatter(x=step, y=acc_valuelist, name=acc_data_list_singlerun[0][0], showlegend = False, hovertext=acc_data_list_singlerun[0][0], line=dict(color=getcolor.get(lossfunction)), mode= "lines+markers")
+            #accuracy_fig["data"][i]["line"] = {"color" : getcolor.get(lossfunction)}
+            loss_fig.add_scatter(x=step, y=loss_valuelist, name=loss_data_list_singlerun[0][0], showlegend = False, hovertext=loss_data_list_singlerun[0][0],line=dict(color=getcolor.get(lossfunction)), mode= "lines+markers")
             #to skip to the next run in both dataframes
             index += 10
         accuracy_fig.update_layout( xaxis_title="epoch", yaxis_title = "value", 
@@ -491,6 +494,7 @@ def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, 
             #save only the coordinates from selectedData
             for i in range(len(sim_selectedData["points"])):
                 selected_x_coordinates.append(sim_selectedData["points"][i]["x"])
+                print("sim_selectedData:", sim_selectedData)
                 selected_y_coordinates.append(sim_selectedData["points"][i]["y"])
             #find and save runs in current dataframe where the coordinates match
             selected_runs_df = current_df.loc[current_df["y"].isin(selected_y_coordinates) & current_df["x"].isin(selected_x_coordinates)]

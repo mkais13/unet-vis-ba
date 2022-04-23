@@ -8,6 +8,8 @@ from keras.applications.inception_v3 import InceptionV3
 from keras.models import Model
 import tensorflow as tf
 from keras.applications.imagenet_utils import decode_predictions
+import keras.backend as K 
+import gc
 
 from keras_segmentation.pretrained import pspnet_50_ADE_20K, pspnet_101_cityscapes, pspnet_101_voc12
 
@@ -76,7 +78,7 @@ def get_identifiers():
 
 
 #preprocesses the images and returns the prediction the given model made
-def extract_features(file, model):
+def extract_features(file, model, img_list):
     #img = load_img(file, target_size=(224,224), interpolation="bicubic",color_mode="grayscale")
     img = load_img(file, target_size=(473,473), interpolation="nearest",color_mode="grayscale")
     #img = load_img(file, target_size=(713,713), interpolation="bicubic",color_mode="grayscale")
@@ -92,10 +94,11 @@ def extract_features(file, model):
     #add 2 fake color channels to fit the model requirements
     rgb_img = np.repeat(reshaped_img[..., np.newaxis], 3, -1)
     #imgx = preprocess_input(rgb_img)
-    
-    features = model.predict(rgb_img, use_multiprocessing=True)
-    result = tf.reshape(features[0],( -1,))
-    return result
+    img_list.append(rgb_img)
+    #features = model.predict(rgb_img, use_multiprocessing=True)
+    #result = tf.reshape(features[0],( -1,))
+    #return result
+    return img_list
 
 def reduce_dimensionality(features, dimensions,method = "umap"):
 
@@ -180,18 +183,101 @@ feature_vectors = []
 identifiers = get_identifiers()
 counter = 0
 #extract features for every run
+
+img_list = []
+
+
 for id in identifiers:
-    vector = extract_features(os.path.join(filepath, id, picture_id +"_predict.png"),model)
-    feature_vectors.append(vector)
-    print("prediction for {} done".format(counter))
+    #vector = extract_features(os.path.join(filepath, id, picture_id +"_predict.png"),model)
+    img = load_img(os.path.join(filepath, id, picture_id +"_predict.png"), target_size=(473,473), interpolation="nearest",color_mode="grayscale")
+    print("image loaded")
+    img = np.array(img)
+    reshaped_img = img.reshape(1,473,473)  
+    print("image reshaped")
+    rgb_img = np.repeat(reshaped_img[..., np.newaxis], 3, -1)
+    print("rgb_img.shape:", rgb_img[0].shape)
+    img_list.append(rgb_img[0])
+    print("preprocessing for {} done".format(counter))
     counter += 1
 
-#get features for ground truth
-truth_vector = extract_features(os.path.join(groundtruthpath,"test-labels-"+ picture_id + ".png"),model)
-feature_vectors.append(truth_vector)
 
-print("making np array")
-feature_vectors_np = np.array(feature_vectors)
+img = load_img(os.path.join(groundtruthpath,"test-labels-"+ picture_id + ".png"), target_size=(473,473), interpolation="nearest",color_mode="grayscale")
+print("image loaded")
+img = np.array(img)
+reshaped_img = img.reshape(1,473,473)  
+print("image reshaped")
+rgb_img = np.repeat(reshaped_img[..., np.newaxis], 3, -1)
+img_list.append(rgb_img[0])
+print("preprocessing for truth done")
+
+batch_array = []
+
+batch_index = -1
+for i in range(len(img_list)):
+    if i % 10 == 0:
+        batch_index += 1
+        batch_array.append([]) 
+    batch_array[batch_index].append(img_list[i])
+
+    
+#for i in range(len(batch_array)):
+#    print("batch_array_shape:", np.shape(batch_array[i]))
+#print("batch_array_shape", np.array(batch_array).shape)
+#get features for ground truth
+#truth_vector = extract_features(os.path.join(groundtruthpath,"test-labels-"+ picture_id + ".png"),model)
+#img_list = extract_features(os.path.join(groundtruthpath,"test-labels-"+ picture_id + ".png"),model, img_list)
+#feature_vectors.append(truth_vector)
+
+#print("img_list:",img_list)
+#img_list_np = np.array(img_list)
+#print("img_list_shape:", img_list_np.shape)
+print("starting prediction")
+#prediction = np.empty()
+
+for i in range(len(batch_array)):
+    print("starting prediction for batch ", i)
+    img_list_np = np.array(batch_array[i])
+    print("img_list_shape:", img_list_np.shape)
+    print("converting to tensor...")
+    input_tensor = tf.convert_to_tensor(img_list_np)
+    print("predicting...")
+    output_tensor = model.predict(input_tensor)
+
+    print("concatenating np array...")
+    if i == 0:
+        prediction = np.reshape(output_tensor, (output_tensor.shape[0], -1))
+        print("current_prediction_shape:", prediction.shape)
+    else:
+        prediction = np.concatenate((prediction, np.reshape(output_tensor, (output_tensor.shape[0], -1))))
+        print("current_prediction_shape:", prediction.shape)
+    K.clear_session()
+    gc.collect()
+
+
+
+
+
+
+#print("converting to tensor...")
+#input_tensor = tf.convert_to_tensor(img_list_np)
+#print("predicting...")
+#output_tensor = model(input_tensor)
+#print("making np array...")
+#prediction = output_tensor.numpy()
+
+#prediction = model.predict_on_batch(img_list_np)
+
+
+
+print("predictionshape:", prediction.shape)
+feature_vectors_np = np.array(prediction)
+print("feature_shape:", feature_vectors_np.shape)
+print("saving data")
+feature_vectors_np_to_ser = pd.DataFrame(feature_vectors_np)
+predictionpath = "C:/Users/momok/Desktop/Bachelorarbeit/dev/vis/assets/data/psp_prediction_data"
+
+feature_vectors_np_to_ser.to_csv(path_or_buf = os.path.join(predictionpath, picture_id + ".csv.gzip"), compression="gzip")
+feature_vectors_np_to_ser = pd.DataFrame(feature_vectors_np)
 print("starting to reduce dimensions")
 data_to_plot = reduce_dimensionality(feature_vectors_np, dimensions, method = method)
  
@@ -203,10 +289,11 @@ if dimensions == 3:
     fig = px.scatter_3d(plotdatadf,x="x",y="y",z="z",color="lossfunction", size="batchsize", symbol="optimizer")
 else:
     plotdatadf = pd.DataFrame(data_to_plot, columns=["x","y","run_id","batchsize","lossfunction","optimizer","topologyfactor","kernelinitializer"])
-    #print("plotdatadf:", plotdatadf)
+    print("plotdatadf:", plotdatadf)
     fig = px.scatter(plotdatadf,x="x",y="y",color="lossfunction", size="batchsize", symbol="optimizer")
 
-#fig.show()
+fig.show()
 
-plotdatadf.to_json(orient ="index", path_or_buf= os.path.join(jsonpath, picture_id + ".json"))
+
+#plotdatadf.to_json(orient ="index", path_or_buf= os.path.join(jsonpath, picture_id + ".json"))
 #plotdatadf.to_csv(path_or_buf= os.path.join(csvpath,"{}d".format(dimensions), picture_id + ".csv"))
