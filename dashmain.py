@@ -72,23 +72,30 @@ dbc.Container([
                 dbc.Col([
                 dbc.Card([
                     dbc.CardBody([
-                    
                         dbc.Col([
-                        html.Div(id="orig_picture_header" , children=["Original Picture"]),
+                            html.Div(id="orig_picture_header" , children=["Original Picture"]),
 
-                        html.Img(id="orig_picture", style={"width" : "29vh"}, className="img-thumbnail"),
+                            html.Img(id="orig_picture", style={"width" : "29vh"}, className="img-thumbnail"),
                         ], style={"display" : "flex", "flex-direction" : "column", "align-items": "center"}),
-                        dbc.Col([
-                        html.Div(id="pred_picture_header" , children=["Predicted Segmentation"]),
+
                         
-                        html.Img(id="pred_picture", style={"width" : "29vh"}, className="img-thumbnail"),
+                        dbc.Modal([
+                            dbc.ModalHeader(dbc.ModalTitle("Overview of Selected Predictions")),
+                            dbc.ModalBody([
+                                html.Div(id="modal_content"),
+                            ]),
+                        ],
+                        id="pred_picture_modal",
+                        fullscreen=True),
+
+                        dbc.Col([  
+                            html.Div(id="pred_picture_header" , children=["Predicted Segmentation"]),
+                           
+                            html.Img(id="pred_picture", style={"width" : "29vh"}, className="img-thumbnail"),
                         ], style={"display" : "flex", "flex-direction" : "column", "align-items": "center"}),
-                    
 
+                        dbc.Button("show all selected pictures", color="primary", id="pred_picture_modal_btn", style={"width": "5vw"}),
 
-
-                    
-                        
                     ], style={"display" : "flex", "flex-direction" : "row", "align-items": "center"} ),
                 ], style={"marginTop" : "2vh"})
                 ], width = {"size" : 8}),
@@ -158,36 +165,48 @@ dbc.Container([
 ], style = {"margin" : 0, "padding-right" : 0, "padding-left" : 0, "min-width" : "100%"})
 
 #updates view of the predicted segmentation
-@app.callback([Output(component_id="pred_picture", component_property="src")],
-[Input(component_id="similaritygraph",component_property="selectedData"),
+@app.callback([Output(component_id="pred_picture", component_property="src"),
+Output(component_id="modal_content", component_property="children")],
+[Input(component_id="selected_runs", component_property="data"),
 Input(component_id="selected_picture_id", component_property="value"),
+State(component_id="not_selected_runs", component_property="data"),
 State(component_id="current_dataframe", component_property="data")],
 )
 
-def update_predicted_picture(selectedData, pic_id, data):
+def update_predicted_picture(selected_runs_json, pic_id, not_selected_runs_json, data):
     print("callback 'update_predicted_picture' triggered")
-    if selectedData != None:
-        img_path = ""
-        run_id = ""
-        x = selectedData["points"][0]["x"]
-        y = selectedData["points"][0]["y"]
-        df = pd.read_json(data, orient= "index")
-        run_id_df = df["run_id"].loc[(df["x"] == x) & (df["y"] == y)]
-        run_id_list = run_id_df.to_list()
-        if run_id_list:
-            run_id = run_id_list[0]
-            print("run_id in update predicted pic:", run_id)
-            img_path = "/assets/images/resultsrun3/" + run_id + "/" + pic_id + "{0}.png".format("_predict" if run_id != "truth" else "")
-        else:
-            img_path = "https://via.placeholder.com/250?text=Select+a+run"
+    if selected_runs_json != None:
+        selected_run_ids, not_selected_run_ids = extract_current_ids(selected_runs_json,not_selected_runs_json)
 
-        return [img_path]
+        result_grid = html.Div()
+
+        #maybe calculate heigth and width for pictures
+        img_list = []
+
+        for i in range (len(selected_run_ids)):
+            img_path = "/assets/images/resultsrun3/" + selected_run_ids[i] + "/" + pic_id + "{0}.png".format("_predict" if selected_run_ids[i] != "truth" else "")
+            img_list.append(html.Img(src=img_path, style={"margin" : "1vw"}, id="pred_img_{}".format(i)))
+            img_list.append(dbc.Tooltip(selected_run_ids[i], target="pred_img_{}".format(i)))
+
+        result_grid = html.Div(children=img_list, style={"display" : "flex","flex-direction":"row", "align-items" : "center", "align-content": "center", "flex-wrap": "wrap"})
+
+        return img_path, result_grid
     else: 
 
         img_path = "https://via.placeholder.com/250?text=Select+a+run"
 
-        return [img_path]
+        return img_path, None
 
+#toggles modal for predicted pictures
+@app.callback(
+    Output("pred_picture_modal", "is_open"),
+    Input("pred_picture_modal_btn", "n_clicks"),
+    State("pred_picture_modal", "is_open"),prevent_initial_call=True
+)
+def toggle_modal(n, is_open):
+    if n:
+        return not is_open
+    return is_open
 
 #updates view of the original picture
 @app.callback(
