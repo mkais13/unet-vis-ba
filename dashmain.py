@@ -1,4 +1,5 @@
 
+from click import style
 import pandas as pd
 import plotly.express as px 
 import plotly.graph_objects as go
@@ -80,13 +81,22 @@ dbc.Container([
 
                         
                         dbc.Modal([
-                            dbc.ModalHeader(dbc.ModalTitle("Overview of Selected Predictions")),
+                            dbc.ModalHeader([
+                                dbc.ModalTitle("Overview of Selected Predictions"),
+                                
+                            ]),
                             dbc.ModalBody([
-                                html.Div(id="modal_content"),
+                                html.Div(id="modal_content", style={"display" : "flex","flex-direction":"row", "align-items" : "center", "align-content": "center", "flex-wrap": "wrap"}),
+                            ], 
+                            id="modal_body"),
+                            dbc.ModalFooter([
+                                dbc.Input(id="modal_slider", type ="range",min=16,max=512, step=16, value=256, inputmode="numeric", className="form-range",disabled=True, style={"width" : "20vw"}),
+                                dbc.Switch(id="modal_manual_picture_size_switch", label="choose picture size manually", value=False)
                             ]),
                         ],
                         id="pred_picture_modal",
-                        fullscreen=True),
+                        fullscreen=True,
+                        scrollable=False),
 
                         dbc.Col([  
                             html.Div(id="pred_picture_header" , children=["Predicted Segmentation"]),
@@ -130,7 +140,7 @@ dbc.Container([
                                         {"value": "tf"},
                                         {"value": "ki"},
                                     ],
-                                    id="checklist_input",
+                                    id="checklist_input", #TODO
                                 ),
                             ]),
                         ]),
@@ -164,6 +174,7 @@ dbc.Container([
 
 ], style = {"margin" : 0, "padding-right" : 0, "padding-left" : 0, "min-width" : "100%"})
 
+
 #updates view of the predicted segmentation
 @app.callback([Output(component_id="pred_picture", component_property="src"),
 Output(component_id="modal_content", component_property="children")],
@@ -178,17 +189,14 @@ def update_predicted_picture(selected_runs_json, pic_id, not_selected_runs_json,
     if selected_runs_json != None:
         selected_run_ids, not_selected_run_ids = extract_current_ids(selected_runs_json,not_selected_runs_json)
 
-        result_grid = html.Div()
-
-        #maybe calculate heigth and width for pictures
         img_list = []
 
         for i in range (len(selected_run_ids)):
             img_path = "/assets/images/resultsrun3/" + selected_run_ids[i] + "/" + pic_id + "{0}.png".format("_predict" if selected_run_ids[i] != "truth" else "")
-            img_list.append(html.Img(src=img_path, style={"margin" : "1vw"}, id="pred_img_{}".format(i)))
+            img_list.append(html.Img(src=img_path, style={"margin" : "0.5vh" , "width" : "512px"}, id="pred_img_{}".format(i), className="modal_images"))
             img_list.append(dbc.Tooltip(selected_run_ids[i], target="pred_img_{}".format(i)))
 
-        result_grid = html.Div(children=img_list, style={"display" : "flex","flex-direction":"row", "align-items" : "center", "align-content": "center", "flex-wrap": "wrap"})
+        result_grid = html.Div(id = "modal_grid", children=img_list, style={"display" : "flex","flex-direction":"row", "align-items" : "center", "align-content": "center", "flex-wrap": "wrap"})
 
         return img_path, result_grid
     else: 
@@ -199,14 +207,25 @@ def update_predicted_picture(selected_runs_json, pic_id, not_selected_runs_json,
 
 #toggles modal for predicted pictures
 @app.callback(
-    Output("pred_picture_modal", "is_open"),
-    Input("pred_picture_modal_btn", "n_clicks"),
-    State("pred_picture_modal", "is_open"),prevent_initial_call=True
+    Output(component_id="pred_picture_modal", component_property="is_open"),
+    Input(component_id="pred_picture_modal_btn", component_property="n_clicks"),
+    State(component_id="pred_picture_modal", component_property="is_open"),prevent_initial_call=True
 )
 def toggle_modal(n, is_open):
     if n:
         return not is_open
     return is_open
+
+#enables slider when switch inside modal is toggled
+@app.callback(
+    [Output(component_id="modal_slider", component_property="disabled")],
+    [Input(component_id="modal_manual_picture_size_switch", component_property="value")]
+    )
+
+def update_slider(switch_value):
+    return [not switch_value]
+
+
 
 #updates view of the original picture
 @app.callback(
@@ -262,7 +281,6 @@ def update_table(selected_runs_json, not_selected_runs_json, triggered_by_checkb
             lf_value = selected_parameters[1][2:]
             opt_value = selected_parameters[2][3:]
             tf_value = selected_parameters[3][2:]
-            print("tf_value in update_table:", tf_value)
             ki_value = selected_parameters[4][2:]
 
     return bs_value, lf_value, opt_value, tf_value, ki_value, []
@@ -513,7 +531,6 @@ def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, 
             #save only the coordinates from selectedData
             for i in range(len(sim_selectedData["points"])):
                 selected_x_coordinates.append(sim_selectedData["points"][i]["x"])
-                print("sim_selectedData:", sim_selectedData)
                 selected_y_coordinates.append(sim_selectedData["points"][i]["y"])
             #find and save runs in current dataframe where the coordinates match
             selected_runs_df = current_df.loc[current_df["y"].isin(selected_y_coordinates) & current_df["x"].isin(selected_x_coordinates)]
