@@ -159,8 +159,8 @@ def reduce_dimensionality(features, dimensions,method = "umap"):
 
 parser = argparse.ArgumentParser(description='set paramaters for feature extraction and dimensionality reduction')
 parser.add_argument('-id' , metavar='id', nargs='?', default=23, const=23, help='picture id')
-parser.add_argument('-d', '--dimensions', metavar='dimensions', type=int, nargs='?', default=2, const=2, help='data gets reduced to d dimensions. 3d is only possible in combination with method umap')
-parser.add_argument('-m', '--method' , metavar='method', type=str, nargs='?', default="pca", const="pca", help='method for dimensionality reduction. Options: umap, tsne, pca')
+parser.add_argument('-d', '--dimensions', metavar='dimensions', type=int, nargs='?', default=3, const=3, help='data gets reduced to d dimensions. 3d is only possible in combination with method umap')
+parser.add_argument('-m', '--method' , metavar='method', type=str, nargs='?', default="umap", const="umap", help='method for dimensionality reduction. Options: umap, tsne, pca')
 args = parser.parse_args()
 
 picture_id = str(args.id)
@@ -220,13 +220,15 @@ data_to_plot = reduce_dimensionality(feature_vectors_np, dimensions, method = me
 
 if dimensions == 3:
     plotdatadf = pd.DataFrame(data_to_plot, columns=["x","y","z","run_id","batchsize","lossfunction","optimizer","topologyfactor","kernelinitializer"])
-    fig = px.scatter_3d(plotdatadf,x="x",y="y",z="z",color="lossfunction", size="batchsize", symbol="optimizer")
+    #fig = px.scatter_3d(plotdatadf,x="x",y="y",z="z",color="lossfunction", size="batchsize", symbol="optimizer")
 else:
     plotdatadf = pd.DataFrame(data_to_plot, columns=["x","y","run_id","batchsize","lossfunction","optimizer","topologyfactor","kernelinitializer"])
     #print("plotdatadf:", plotdatadf)
-    fig = px.scatter(plotdatadf,x="x",y="y",color="lossfunction", size="batchsize", symbol="optimizer")
+    #fig = px.scatter(plotdatadf,x="x",y="y",color="lossfunction", size="batchsize", symbol="optimizer")
 
-fig.show()
+#fig.show()
 
+#TODO hier speichern und dann nochmal 3d auf 2d mappen
+plotdatadf.to_json(orient ="index", path_or_buf= os.path.join("C:/Users/momok/Desktop/Bachelorarbeit/dev/vis/assets/data/predictiondata", picture_id + "_old_method.json"))
 #plotdatadf.to_json(orient ="index", path_or_buf= os.path.join(embedpath, picture_id + ".json"))
 #plotdatadf.to_csv(path_or_buf= os.path.join(csvpath,"{}d".format(dimensions), picture_id + ".csv"))

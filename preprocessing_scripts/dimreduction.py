@@ -1,5 +1,4 @@
- 
-from sre_constants import CATEGORY_UNI_NOT_LINEBREAK
+
 from keras.preprocessing.image import load_img 
 from keras.applications.vgg16 import preprocess_input 
 from keras.applications.vgg16 import VGG16 
@@ -18,15 +17,18 @@ import argparse
 from matplotlib.pyplot import plot
 import numpy as np
 import pandas as pd
+import skdim
 import umap
 import umap.plot
 import plotly.express as px
+from sklearn.decomposition import TruncatedSVD
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-
+import dask.dataframe as dd
+import dask.array as da
 
 
 
@@ -106,11 +108,11 @@ def reduce_dimensionality(features, dimensions,method = "umap"):
 
 
     if dimensions == 3 and method == "umap":
-        umap_3d = umap.UMAP(n_components=3, random_state=42)
+        umap_3d = umap.UMAP(n_components=3, random_state=42, low_memory=True)
         umap_proj_3d = umap_3d.fit_transform(features)
         plotdatalist = umap_proj_3d.tolist()
     elif method == "umap":
-        umap_2d = umap.UMAP(random_state=42)
+        umap_2d = umap.UMAP(random_state=42, low_memory=True)
         umap_proj_2d = umap_2d.fit_transform(features)
         plotdatalist = umap_proj_2d.tolist()
     elif method =="pca":
@@ -121,6 +123,10 @@ def reduce_dimensionality(features, dimensions,method = "umap"):
         tsne = TSNE()
         tsne_proj_2d = tsne.fit_transform(features)
         plotdatalist = tsne_proj_2d.tolist()
+    elif method =="svd":
+        svd = TruncatedSVD()
+        svd_proj_2d = svd.fit_transform(features)
+        plotdatalist = svd_proj_2d.tolist()
 
     else: 
         raise ValueError("parameter 'method' is not valid'")
@@ -155,6 +161,9 @@ def reduce_dimensionality(features, dimensions,method = "umap"):
 
     return plotdatalist
 
+
+#************************************************************************************************************************************************************************
+
 parser = argparse.ArgumentParser(description='set paramaters for feature extraction and dimensionality reduction')
 parser.add_argument('-id' , metavar='id', nargs='?', default=23, const=23, help='picture id')
 parser.add_argument('-d', '--dimensions', metavar='dimensions', type=int, nargs='?', default=2, const=2, help='data gets reduced to d dimensions. 3d is only possible in combination with method umap')
@@ -174,7 +183,7 @@ model = pspnet_50_ADE_20K()
 #model = InceptionV3(include_top=False)
 #remove last layers to access featurevectors
 
-model = Model(inputs = model.inputs, outputs = model.layers[-1].output)
+model = Model(inputs = model.inputs, outputs = model.layers[-2].output)
 #model = Model(inputs = model.inputs, outputs = model.get_layer("conv5_4").output)
 #model = Model(inputs = model.inputs, outputs = model.get_layer("conv6").output)
 
@@ -214,7 +223,7 @@ batch_array = []
 
 batch_index = -1
 for i in range(len(img_list)):
-    if i % 10 == 0:
+    if i % 110 == 0:
         batch_index += 1
         batch_array.append([]) 
     batch_array[batch_index].append(img_list[i])
@@ -268,25 +277,65 @@ for i in range(len(batch_array)):
 #prediction = model.predict_on_batch(img_list_np)
 
 
+#saving vectors with dask------------------------------------------------------
+#print("predictionshape:", prediction.shape)
+#feature_vectors_dask = da.from_array(prediction)
+#predictionpath = "C:/Users/momok/Desktop/Bachelorarbeit/dev/vis/assets/data/predictiondata/{}.hdf5".format(picture_id)
+#feature_vectors_dask.to_hdf5(predictionpath, "/feature_vectors_dask")
+#-----------------------------------------------------------------------------
 
-print("predictionshape:", prediction.shape)
-feature_vectors_np = np.array(prediction)
-print("feature_shape:", feature_vectors_np.shape)
-print("saving data")
-feature_vectors_np_to_ser = pd.DataFrame(feature_vectors_np)
-predictionpath = "C:/Users/momok/Desktop/Bachelorarbeit/dev/vis/assets/data/psp_prediction_data"
+#calculating fischer------------------------------------------------------
+#print("calculating fisher")
+#fisher = skdim.id.FisherS().fit_transform(X=prediction)
+#print("fisher.dim: ", fisher.dimension_)
+#print("fisher.n_single: ", fisher.n_single)
+#-----------------------------------------------------------------------
 
-feature_vectors_np_to_ser.to_csv(path_or_buf = os.path.join(predictionpath, picture_id + ".csv.gzip"), compression="gzip")
-feature_vectors_np_to_ser = pd.DataFrame(feature_vectors_np)
+#calculating danco------------------------------------------------------
+#print("calculating danco")
+#danco = skdim.id.DANCo().fit_transform(prediction)
+#print("danco", danco)
+#print("dancodim", danco.dimension_)
+#-----------------------------------------------------------------------
+
+
+#calculating kNN------------------------------------------------------
+#print("calculating KNN")
+#knn = skdim.id.KNN().fit_transform(prediction)
+#print("knn", knn)
+#-----------------------------------------------------------------------
+
+#calculating MiND_ML------------------------------------------------------
+#print("calculating MiND_ML")
+#mindml = skdim.id.MiND_ML(k=40, ver="MLi").fit_transform(prediction)
+#print("MiND_ML", mindml)
+#-----------------------------------------------------------------------
+
+
+
+#feature_vectors_np = np.array(prediction)
+#print("feature_shape:", feature_vectors_np.shape)
+
+#sklearnpca = PCA(n_components=0.05).fit(feature_vectors_np)
+#lpcadim = skdim.id.lPCA(ver="ratio").fit(feature_vectors_np).dimension_
+
+#print("lpcadim", lpcadim)
+#print("sklearnpca: ",sklearnpca)
+#print("sklearnpca dim:", len(sklearnpca.singular_values_))
+#print("saving data")
+#feature_vectors_np_to_ser = pd.DataFrame(feature_vectors_np)
+#predictionpath = "C:/Users/momok/Desktop/Bachelorarbeit/dev/vis/assets/data/psp_prediction_data"
+
+#feature_vectors_np_to_ser.to_csv(path_or_buf = os.path.join(predictionpath, picture_id + ".csv.gzip"), compression="gzip")
+#feature_vectors_np_to_ser = pd.DataFrame(feature_vectors_np)
 print("starting to reduce dimensions")
-data_to_plot = reduce_dimensionality(feature_vectors_np, dimensions, method = method)
- 
+data_to_plot = reduce_dimensionality(prediction, dimensions, method = method)
 
 #convert list into Panda-DataFrame
 
 if dimensions == 3:
     plotdatadf = pd.DataFrame(data_to_plot, columns=["x","y","z","run_id","batchsize","lossfunction","optimizer","topologyfactor","kernelinitializer"])
-    fig = px.scatter_3d(plotdatadf,x="x",y="y",z="z",color="lossfunction", size="batchsize", symbol="optimizer")
+    #fig = px.scatter_3d(plotdatadf,x="x",y="y",z="z",color="lossfunction", size="batchsize", symbol="optimizer")
 else:
     plotdatadf = pd.DataFrame(data_to_plot, columns=["x","y","run_id","batchsize","lossfunction","optimizer","topologyfactor","kernelinitializer"])
     print("plotdatadf:", plotdatadf)
@@ -295,5 +344,6 @@ else:
 fig.show()
 
 
+#plotdatadf.to_json(orient ="index", path_or_buf= os.path.join("C:/Users/momok/Desktop/Bachelorarbeit/dev/vis/assets/data/predictiondata", picture_id + ".json"))
 #plotdatadf.to_json(orient ="index", path_or_buf= os.path.join(jsonpath, picture_id + ".json"))
 #plotdatadf.to_csv(path_or_buf= os.path.join(csvpath,"{}d".format(dimensions), picture_id + ".csv"))
