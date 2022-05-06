@@ -32,7 +32,7 @@ import matplotlib.image as mpimg
 
 filepath= "C:/Users/momok/Desktop/Bachelorarbeit/dev/vis/assets/images/resultsrun3"
 groundtruthpath = "C:/Users/momok/Desktop/Bachelorarbeit/test-labels/test-labels-0-256"
-embedpath = "C:/Users/momok/Desktop/Bachelorarbeit/test-labels/similarity_plots/2d pspnet_50_ADE_20K(-1)"
+embedpath = "C:/Users/momok/Desktop/Bachelorarbeit/dev/vis/assets/data/embeddata/3d"
 csvpath = "C:/Users/momok/Desktop/Bachelorarbeit/dev/results/csvdata"
 predictionpath = "C:/Users/momok/Desktop/Bachelorarbeit/dev/vis/assets/data/psp_prediction_data"
 
@@ -229,6 +229,6 @@ else:
 #fig.show()
 
 #TODO hier speichern und dann nochmal 3d auf 2d mappen
-plotdatadf.to_json(orient ="index", path_or_buf= os.path.join("C:/Users/momok/Desktop/Bachelorarbeit/dev/vis/assets/data/predictiondata", picture_id + "_old_method.json"))
+plotdatadf.to_json(orient ="index", path_or_buf= os.path.join(embedpath, picture_id + ".json"))
 #plotdatadf.to_json(orient ="index", path_or_buf= os.path.join(embedpath, picture_id + ".json"))
 #plotdatadf.to_csv(path_or_buf= os.path.join(csvpath,"{}d".format(dimensions), picture_id + ".csv"))

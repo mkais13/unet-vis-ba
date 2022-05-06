@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 import dash_bootstrap_components as dbc
 import numpy as np
 import dash
+import map_script
 
 from dash import Dash, dcc, html, Input, Output, State, dash_table, callback_context
 import os
@@ -27,7 +28,7 @@ def create_picture_options():
 
 
 app.layout = dbc.Container([
-dbc.NavbarSimple(color="primary",brand = "SIMILARITY PLOT OF UNET TRAININGS WITH DIFFERENT HYPERPARAMETERS", dark=True, style={"padding-left" : "3vh", "height" : "8vh"}),
+dbc.NavbarSimple(color="primary",brand = "Visual CNN Hyperparameter Analysis for Image Segmentation Via Pre-trained Network Features", dark=True, style={"padding-left" : "3vh", "height" : "8vh"}),
 
 dbc.Container([
     dbc.Row([
@@ -63,6 +64,12 @@ dbc.Container([
                                     style={"padding-right" : "3vh"}
                                 ),
                             ], className="text-center"),
+
+                        ],align="center"),
+                        dbc.Col([
+                            dbc.Button("calculate similarity for selected points", color="primary", id="remap_btn"),
+                            
+                            html.Div(className="lds-ring", children = [html.Div(),html.Div(),html.Div(),html.Div()]),
 
                         ],align="center"),
                     ], justify= "evenly", align="center"),
@@ -168,11 +175,13 @@ dbc.Container([
     dcc.Store(id="selected_runs"),
     dcc.Store(id="not_selected_runs"),
     dcc.Store(id="change_triggered_by_checkboxes"),
-    dcc.Store(id="change_triggered_by_similaritygraph")
+    dcc.Store(id="change_triggered_by_similaritygraph"),
+    dcc.Store(id="mapping_state")
     
 ], style={ "padding" : "2vh", "min-width" : "inherit"})
 
 ], style = {"margin" : 0, "padding-right" : 0, "padding-left" : 0, "min-width" : "100%"})
+
 
 
 #updates view of the predicted segmentation
@@ -333,35 +342,54 @@ def update_current_dataframe(selected_picture_id, selected_dimension):
 #updates similaritygraph 
 @app.callback([
     Output(component_id="similaritygraph", component_property="figure"),
+    Output(component_id="mapping_state", component_property="data")
     ],[
     Input(component_id="selected_picture_id", component_property="value"),
     Input(component_id="selected_dimension", component_property="value"),
     Input(component_id="selected_runs", component_property="data"),
     Input(component_id="not_selected_runs", component_property="data"),
+    Input(component_id="remap_btn", component_property="n_clicks"),
     State(component_id="similaritygraph", component_property="figure"),
-    State(component_id="current_dataframe", component_property="data")
+    State(component_id="current_dataframe", component_property="data"),
+    State(component_id="mapping_state", component_property="data")
 ])
 
-def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, not_selected_runs_json, similarity_fig, dataframe):
+def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, not_selected_runs_json, remap_btn_clicks, similarity_fig, dataframe, mapping_state):
     triggering_component = callback_context.triggered[0]['prop_id'].split('.')[0]
     
-    datapath = "assets/data/embeddata/2d pspnet_50_ADE_20K(-1)/{0}.json".format(slctd_pic_id)
+    datapath = "assets/data/embeddata/{0}d pspnet_50_ADE_20K(-1)/{1}.json".format(slctd_dim.lower()[:1],slctd_pic_id)
     data = pd.read_json(datapath, orient="index")  
     #data = pd.read_json("assets/data/embeddata/{0}/{1}.json".format(slctd_dim.lower(),slctd_pic_id), orient="index")
     
     print("callback 'update_graph' triggered by {}".format(triggering_component if triggering_component != "" else "initial callback"))
 
+    #TODO add variable to check if graph is currently remapped
+
     #change similaritygraph from 2d to 3d or vice versa
-    if slctd_dim == "3D":
-        similarity_fig = px.scatter_3d(data,x="x",y="y",z="z",color="lossfunction", size="batchsize", symbol="optimizer", custom_data= ["run_id"])
-        similarity_fig.update_layout(clickmode='event+select')
-    else:
-        similarity_fig = px.scatter(data,x="x",y="y",color="lossfunction", size="batchsize", symbol="optimizer", custom_data= ["run_id"])
-        similarity_fig.update_layout(clickmode='event+select')
+    if(mapping_state != "remapped"):
+        if slctd_dim == "3D":
+            similarity_fig = px.scatter_3d(data,x="x",y="y",z="z",color="lossfunction", size="batchsize", symbol="optimizer", custom_data= ["run_id"])
+            similarity_fig.update_layout(clickmode='event+select')
+        else:
+            similarity_fig = px.scatter(data,x="x",y="y",color="lossfunction", size="batchsize", symbol="optimizer", custom_data= ["run_id"])
+            similarity_fig.update_layout(clickmode='event+select')
 
     #if callback is called on page-load, change nothing
-    if (triggering_component == "" ):
-        return [similarity_fig]
+    if (triggering_component == "" or selected_runs_json == None):
+        return similarity_fig, dash.no_update
+    elif(triggering_component == "remap_btn"):
+        #data needs to get remapped
+        if remap_btn_clicks:
+            path_to_3d_data = os.path.join("assets/data/embeddata/3d pspnet_50_ADE_20K(-1)", slctd_pic_id + ".json")
+            selected_run_ids, not_selected_run_ids = extract_current_ids(selected_runs_json,not_selected_runs_json)
+
+            fig = map_script.map_data(path_to_3d_data, selected_run_ids)
+
+            return fig, "remapped"
+
+        else: 
+            return similarity_fig, dash.no_update
+
     else:
         #extract current run-ids
        
@@ -373,31 +401,45 @@ def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, not_selected_runs_
         not_selected_counter = 0
         template_array = np.zeros(len(similarity_fig["data"][0]["customdata"]))
         
+
         for j in range (len(similarity_fig["data"])):
             # go through selected runs
             
             opacity_array = np.copy(template_array)
+            color_array = []
             for i in range(len(selected_run_ids)):
                 
                 for k in range(len(similarity_fig["data"][j]["customdata"])):
                     if similarity_fig["data"][j]["customdata"][k][0] == selected_run_ids[i]:
                         selected_counter += 1
                         np.put(opacity_array, k, 0.8)
+                        color_array.append(hex_to_rbga(similarity_fig["data"][j]["marker"]["color"], 0.8))
                     else:
                         np.put(opacity_array, k, 1)
-
+                        color_array.append(hex_to_rbga(similarity_fig["data"][j]["marker"]["color"], 1))
+            
             # go trough not selected runs
             for i in range(len(not_selected_run_ids)):
+                
                 for k in range(len(similarity_fig["data"][j]["customdata"])):
+                    
                     if similarity_fig["data"][j]["customdata"][k][0] == not_selected_run_ids[i]:
+                        color_array[k] = hex_to_rbga(similarity_fig["data"][j]["marker"]["color"], 0.1)
                         np.put(opacity_array, k, 0.1)
                         not_selected_counter += 1
-            similarity_fig["data"][j]["marker"]["opacity"] = opacity_array
+            if(slctd_dim == "2D"):
+                similarity_fig["data"][j]["marker"]["opacity"] = opacity_array
+            else:
+                #markiert falsch
+                #code above creates color array with built in opacitys to set the colors, cause color can be a list, opacity cannot (dumb)
+                # hex color #aaaaaaxx -> xx represents opacity, cc for 80%, 1a for 10%
+                similarity_fig["data"][j]["marker"]["color"] = color_array
+            
         print("sim_fig found {0} selected runs, input was {1} runs".format(selected_counter, len(selected_run_ids)))
         print("sim_fig found {0} not selected runs, input was {1} runs".format(not_selected_counter, len(not_selected_run_ids)))
 
 
-        return [similarity_fig]
+        return similarity_fig, dash.no_update
                     
 
 
@@ -526,14 +568,12 @@ def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, 
     if triggering_component == "similaritygraph":
         print("callback 'update_selected_runs' triggered by sim_graph with {} runs".format(len(sim_selectedData["points"])))
         if(sim_selectedData != None):
-            selected_x_coordinates = []
-            selected_y_coordinates = []
+            selected_runs = []
             #save only the coordinates from selectedData
             for i in range(len(sim_selectedData["points"])):
-                selected_x_coordinates.append(sim_selectedData["points"][i]["x"])
-                selected_y_coordinates.append(sim_selectedData["points"][i]["y"])
+                selected_runs.append(sim_selectedData["points"][i]["customdata"][0])
             #find and save runs in current dataframe where the coordinates match
-            selected_runs_df = current_df.loc[current_df["y"].isin(selected_y_coordinates) & current_df["x"].isin(selected_x_coordinates)]
+            selected_runs_df = current_df.loc[current_df["run_id"].isin(selected_runs)]
             #save all runs that have not been located above
             not_selected_runs_df = current_df.loc[~current_df["run_id"].isin(selected_runs_df["run_id"])]
 
@@ -651,11 +691,14 @@ def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, 
 def extract_current_ids(selected_runs_json, not_selected_runs_json):
     selected_runs_df = pd.read_json(selected_runs_json, orient="index")
     not_selected_runs_df = pd.read_json(not_selected_runs_json, orient="index")
+
     selected_run_ids = selected_runs_df["run_id"].tolist()
+
     if not_selected_runs_df.empty:
         not_selected_run_ids = []
     else:    
         not_selected_run_ids = not_selected_runs_df["run_id"].tolist()
+
     return selected_run_ids, not_selected_run_ids
 
 def switch_hyperparameter(shortform):
@@ -667,6 +710,12 @@ def switch_hyperparameter(shortform):
         "ki" : "kernelinitializer"
     }
     return switcher.get(shortform)
+
+def hex_to_rbga(hexstring, alpha):
+    clean_hex = hexstring.lstrip('#')
+    output = "rgba{}".format(tuple(int(clean_hex[i:i+2], 16) for i in (0, 2, 4)))
+    output = output[:-1] + ", " + str(alpha) + ")"
+    return output
 
 
 if __name__ == '__main__':
