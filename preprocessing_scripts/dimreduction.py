@@ -328,6 +328,12 @@ for i in range(len(batch_array)):
 
 #feature_vectors_np_to_ser.to_csv(path_or_buf = os.path.join(predictionpath, picture_id + ".csv.gzip"), compression="gzip")
 #feature_vectors_np_to_ser = pd.DataFrame(feature_vectors_np)
+
+
+
+
+
+
 print("starting to reduce dimensions")
 data_to_plot = reduce_dimensionality(prediction, dimensions, method = method)
 

@@ -16,6 +16,7 @@ app = Dash(__name__, update_title=None, external_stylesheets=[dbc.themes.FLATLY]
 
 def create_picture_options():
     result = []
+    result.append({"label": "cumulative values", "value" : "cumulative values"})
     for i in range(30):
         result.append({"label": str(i), "value" : str(i)})
     return result
@@ -43,7 +44,7 @@ dbc.Container([
                                     id="selected_picture_id",
                                     options= create_picture_options(), 
                                     multi=False,
-                                    value="0",
+                                    value="cumulative values",
                                     clearable=False,
                                 ),
                             ]),
@@ -243,7 +244,10 @@ def update_slider(switch_value):
 )
 
 def update_original_picture(pic_id):
-    img_path = "/assets/images/originals/" + pic_id + ".png"
+    if pic_id != "cumulative values":
+        img_path = "/assets/images/originals/" + pic_id + ".png"
+    else:
+        img_path = "https://via.placeholder.com/250?text=Select+a+picture+id"
     return [img_path]
 
 

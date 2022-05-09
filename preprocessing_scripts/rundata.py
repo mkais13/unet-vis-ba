@@ -1,4 +1,3 @@
-
 import os
 
 commands =[]
@@ -8,3 +7,4 @@ for i in range(29):
 
 for i in range(len(commands)):
     os.system(commands[i])
+
