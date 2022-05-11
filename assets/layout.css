@@ -1,23 +1,17 @@
-.row {
-    display: flex; 
-    flex-direction: row;
-    justify-content: space-around;
-    align-content: center;
-  }
 
-.column {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-evenly;
-    align-items: center;
-    height: 350px;
-    width: 33%;
-    flex-grow: 1;
+
+.mahlzit{
+  height: 0vh;
+  
+}
+.mahlzit div:nth-child(1){
+  margin-top: 8px;
 }
 
-.image{
-    height: 50%;
+ .mahlzit div:nth-child(n){
+    height: 34px;
 }
+
 
 .lds-ring {
     display: inline-block;

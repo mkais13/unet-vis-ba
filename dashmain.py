@@ -1,4 +1,5 @@
 
+import time
 from click import style
 import pandas as pd
 import plotly.express as px 
@@ -13,6 +14,8 @@ import os
 import tensorboard as tb
 
 app = Dash(__name__, update_title=None, external_stylesheets=[dbc.themes.FLATLY])
+
+
 
 def create_picture_options():
     result = []
@@ -70,11 +73,24 @@ dbc.Container([
                         dbc.Col([
                             dbc.Button("calculate similarity for selected points", color="primary", id="remap_btn"),
                             
-                            html.Div(className="lds-ring", children = [html.Div(),html.Div(),html.Div(),html.Div()]),
-
+                            
                         ],align="center"),
                     ], justify= "evenly", align="center"),
-                    dcc.Graph(id="similaritygraph", style={"height" : "40vh"}),
+
+                    dcc.Loading(
+                                id="loading-1",
+                                type="cube",
+                                children=dcc.Graph(id="similaritygraph", style={"height" : "40vh"}, )
+                            ),
+
+
+                    dbc.Row([
+
+                                dbc.Button("reset mapping", color="primary",disabled= True, id="reset_mapping_btn", size= "sm", style={"width" : "10vw"}),
+
+                                dbc.Button("reset selection", color="primary", id="reset_selection_btn", size= "sm",  style={"width" : "10vw"}),
+
+                            ], justify="around", style={"display" : "flex", "flex-direction":"row", "align-items": "center"}),
                 ]),
             ]),
             dbc.Row([
@@ -112,7 +128,7 @@ dbc.Container([
                             html.Img(id="pred_picture", style={"width" : "29vh"}, className="img-thumbnail"),
                         ], style={"display" : "flex", "flex-direction" : "column", "align-items": "center"}),
 
-                        dbc.Button("show all selected pictures", color="primary", id="pred_picture_modal_btn", style={"width": "5vw"}),
+                        dbc.Button("show all selected pictures", color="primary", disabled=True,id="pred_picture_modal_btn", style={"width": "5vw"}),
 
                     ], style={"display" : "flex", "flex-direction" : "row", "align-items": "center"} ),
                 ], style={"marginTop" : "2vh"})
@@ -123,15 +139,23 @@ dbc.Container([
                     dbc.CardBody([
                         dbc.Row([
                             dbc.Col([
-                                html.Div(id="hyperparameter_header" , children=["Hyperparameter"]),
+                            html.Div(id="hyperparameter_header" , children=["Hyperparameter"]),
+                            ]),dbc.Col([
+                            html.Div(id="value_header" , children=["Value"]),
+                            ]),dbc.Col([
+                            html.Div(id="checklist_header" , children=["Choose"]),
+                            ])
+                        ]),
+                        dbc.Row([
+                            dbc.Col([
                                 html.Div(id="bs_text" , children=["Batchsize"]),
                                 html.Div(id="lf_text" , children=["Lossfunction"]),
                                 html.Div(id="opt_text" , children=["Optimizer"]),
                                 html.Div(id="tf_text" , children=["Topologyfactor"]),
                                 html.Div(id="ki_text" , children=["Kernelinitialitzer"]),
-                            ], style={"justify" : "space-between"}),
+                            ], style={"justify" : "space-between"}, class_name="mahlzit"),
                             dbc.Col([
-                                html.Div(id="value_header" , children=["Value"]),
+                                
                                 dcc.Dropdown(id ="bs_dropdown"),
                                 dcc.Dropdown(id ="lf_dropdown"),
                                 dcc.Dropdown(id ="opt_dropdown"),
@@ -139,7 +163,6 @@ dbc.Container([
                                 dcc.Dropdown(id ="ki_dropdown"),
                             ]),
                             dbc.Col([
-                                html.Div(id="checklist_header" , children=["Choose"]),
                                 dbc.Checklist(
                                     options=[
                                         {"value": "bs"},
@@ -149,6 +172,7 @@ dbc.Container([
                                         {"value": "ki"},
                                     ],
                                     id="checklist_input", #TODO
+                                    class_name="mahlzit"
                                 ),
                             ]),
                         ]),
@@ -165,8 +189,8 @@ dbc.Container([
             dbc.Card([
                 dbc.CardBody([
                     dbc.Col([
-                        dcc.Graph(id="accuracygraph", style={"height" : "42vh"}),
-                        dcc.Graph(id="lossgraph", style={"height" : "42vh"})
+                         dcc.Graph(id="accuracygraph", style={"height" : "42vh"}),
+                         dcc.Graph(id="lossgraph", style={"height" : "42vh"}),
                     ])
                 ],)
             ]),
@@ -196,6 +220,11 @@ State(component_id="current_dataframe", component_property="data")],
 
 def update_predicted_picture(selected_runs_json, pic_id, not_selected_runs_json, data):
     print("callback 'update_predicted_picture' triggered")
+    if pic_id == "cumulative values":
+        img_path = "assets/images/placeholders/not_avail.png"
+
+        return img_path, None
+
     if selected_runs_json != None:
         selected_run_ids, not_selected_run_ids = extract_current_ids(selected_runs_json,not_selected_runs_json)
 
@@ -211,9 +240,11 @@ def update_predicted_picture(selected_runs_json, pic_id, not_selected_runs_json,
         return img_path, result_grid
     else: 
 
-        img_path = "https://via.placeholder.com/250?text=Select+a+run"
+        img_path = "assets/images/placeholders/select.png"
 
         return img_path, None
+
+
 
 #toggles modal for predicted pictures
 @app.callback(
@@ -225,6 +256,39 @@ def toggle_modal(n, is_open):
     if n:
         return not is_open
     return is_open
+
+@app.callback(
+    [Output(component_id="reset_mapping_btn", component_property="disabled")],
+    [Input(component_id="mapping_state", component_property="data")]
+)
+def update_mapping_btn(data):
+    if data == "remapped":
+         return [False]
+    else: 
+        return [True]
+
+
+
+#enables buttons when something is selected
+@app.callback(
+    [Output(component_id="remap_btn", component_property="disabled"),
+    Output(component_id="reset_selection_btn", component_property="disabled"),
+    Output(component_id="pred_picture_modal_btn", component_property="disabled")],
+    [Input(component_id="selected_runs", component_property="data"),
+    Input(component_id="selected_picture_id", component_property="value")]
+)
+def update_button_clickability(selected_runs, pic_id):
+
+    if pic_id != "cumulative values" and selected_runs != None:
+        modal_button_disabled = False
+    else: 
+        modal_button_disabled = True
+
+    if selected_runs == None: 
+        return True, True, modal_button_disabled
+    else:
+        return False, False, modal_button_disabled
+
 
 #enables slider when switch inside modal is toggled
 @app.callback(
@@ -247,7 +311,7 @@ def update_original_picture(pic_id):
     if pic_id != "cumulative values":
         img_path = "/assets/images/originals/" + pic_id + ".png"
     else:
-        img_path = "https://via.placeholder.com/250?text=Select+a+picture+id"
+        img_path = "assets/images/placeholders/not_avail.png"
     return [img_path]
 
 
@@ -353,12 +417,13 @@ def update_current_dataframe(selected_picture_id, selected_dimension):
     Input(component_id="selected_runs", component_property="data"),
     Input(component_id="not_selected_runs", component_property="data"),
     Input(component_id="remap_btn", component_property="n_clicks"),
+    Input(component_id="reset_mapping_btn", component_property="n_clicks"),
     State(component_id="similaritygraph", component_property="figure"),
     State(component_id="current_dataframe", component_property="data"),
     State(component_id="mapping_state", component_property="data")
 ])
 
-def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, not_selected_runs_json, remap_btn_clicks, similarity_fig, dataframe, mapping_state):
+def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, not_selected_runs_json, remap_btn_clicks, reset_mapping_butn_click, similarity_fig, dataframe, mapping_state):
     triggering_component = callback_context.triggered[0]['prop_id'].split('.')[0]
     
     datapath = "assets/data/embeddata/{0}d pspnet_50_ADE_20K(-1)/{1}.json".format(slctd_dim.lower()[:1],slctd_pic_id)
@@ -367,10 +432,9 @@ def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, not_selected_runs_
     
     print("callback 'update_graph' triggered by {}".format(triggering_component if triggering_component != "" else "initial callback"))
 
-    #TODO add variable to check if graph is currently remapped
 
     #change similaritygraph from 2d to 3d or vice versa
-    if(mapping_state != "remapped"):
+    if(mapping_state != "remapped" or triggering_component == "reset_mapping_btn"):
         if slctd_dim == "3D":
             similarity_fig = px.scatter_3d(data,x="x",y="y",z="z",color="lossfunction", size="batchsize", symbol="optimizer", custom_data= ["run_id"])
             similarity_fig.update_layout(clickmode='event+select')
@@ -381,6 +445,8 @@ def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, not_selected_runs_
     #if callback is called on page-load, change nothing
     if (triggering_component == "" or selected_runs_json == None):
         return similarity_fig, dash.no_update
+
+
     elif(triggering_component == "remap_btn"):
         #data needs to get remapped
         if remap_btn_clicks:
@@ -442,8 +508,12 @@ def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, not_selected_runs_
         print("sim_fig found {0} selected runs, input was {1} runs".format(selected_counter, len(selected_run_ids)))
         print("sim_fig found {0} not selected runs, input was {1} runs".format(not_selected_counter, len(not_selected_run_ids)))
 
+        if(triggering_component == "reset_mapping_btn"):
+            return similarity_fig, None
+        else:
+            return similarity_fig, dash.no_update
+        
 
-        return similarity_fig, dash.no_update
                     
 
 
@@ -554,10 +624,11 @@ def update_extendedview(selected_runs_json, not_selected_runs_json, acc_figInput
     Input(component_id="tf_dropdown", component_property="value"),
     Input(component_id="ki_dropdown", component_property="value"),
     Input(component_id="checklist_input", component_property="value"),
+    Input(component_id="reset_selection_btn", component_property="n_clicks"),
     State(component_id="current_dataframe", component_property="data")], prevent_initial_call=True
 )
 
-def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, bs_dropdown_value, lf_dropdown_value, opt_dropdown_value, tf_dropdown_value, ki_dropdown_value, checklist_value, data):
+def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, bs_dropdown_value, lf_dropdown_value, opt_dropdown_value, tf_dropdown_value, ki_dropdown_value, checklist_value,reset_selection_btn_clicks, data):
     #current dataframe
     current_df = pd.read_json(data, orient= "index")
     #save component which triggered the callback
@@ -565,11 +636,13 @@ def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, 
     #group dropdowns for readabitily
     dropdowns = {"bs_dropdown", "lf_dropdown", "opt_dropdown","tf_dropdown", "ki_dropdown"}
     dropdown_values = {bs_dropdown_value, lf_dropdown_value, opt_dropdown_value, tf_dropdown_value, ki_dropdown_value}
-
-
+    #change triggered by reset-btn
+    if triggering_component == "reset_selection_btn":
+         
+         return None, None, False
 
     #callback triggered by similaritygraph
-    if triggering_component == "similaritygraph":
+    elif triggering_component == "similaritygraph":
         print("callback 'update_selected_runs' triggered by sim_graph with {} runs".format(len(sim_selectedData["points"])))
         if(sim_selectedData != None):
             selected_runs = []
