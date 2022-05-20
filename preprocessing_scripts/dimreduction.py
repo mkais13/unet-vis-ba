@@ -223,7 +223,7 @@ batch_array = []
 
 batch_index = -1
 for i in range(len(img_list)):
-    if i % 110 == 0:
+    if i % 1 == 0:
         batch_index += 1
         batch_array.append([]) 
     batch_array[batch_index].append(img_list[i])
@@ -243,27 +243,35 @@ for i in range(len(img_list)):
 print("starting prediction")
 #prediction = np.empty()
 
-for i in range(len(batch_array)):
-    print("starting prediction for batch ", i)
-    img_list_np = np.array(batch_array[i])
-    print("img_list_shape:", img_list_np.shape)
-    print("converting to tensor...")
-    input_tensor = tf.convert_to_tensor(img_list_np)
-    print("predicting...")
-    output_tensor = model.predict(input_tensor)
+#for i in range(len(batch_array)):
+#    print("starting prediction for batch ", i)
+#    img_list_np = np.array(batch_array[i])
+#    print("img_list_shape:", img_list_np.shape)
+#    print("converting to tensor...")
+#    input_tensor = tf.convert_to_tensor(img_list_np)
+#    print("predicting...")
+#    output_tensor = model.predict(input_tensor)
+#    print("output_shape", output_tensor.shape)
+#    print("concatenating np array...")
+#    if i == 0:
+#        prediction = np.reshape(output_tensor, (output_tensor.shape[0], -1))
+#        print("current_prediction_shape:", prediction.shape)
+#    else:
+#        prediction = np.concatenate((prediction, np.reshape(output_tensor, (output_tensor.shape[0], -1))))
+#        print("current_prediction_shape:", prediction.shape)
+#    K.clear_session()
+#    gc.collect()
 
-    print("concatenating np array...")
-    if i == 0:
-        prediction = np.reshape(output_tensor, (output_tensor.shape[0], -1))
-        print("current_prediction_shape:", prediction.shape)
-    else:
-        prediction = np.concatenate((prediction, np.reshape(output_tensor, (output_tensor.shape[0], -1))))
-        print("current_prediction_shape:", prediction.shape)
-    K.clear_session()
-    gc.collect()
-
-
-
+print("starting prediction for batch ", i)
+img_list_np = np.array(batch_array[0])
+print("img_list_shape:", img_list_np.shape)
+print("converting to tensor...")
+input_tensor = tf.convert_to_tensor(img_list_np)
+print("predicting...")
+output_tensor = model.predict(input_tensor)
+print("output_shape", output_tensor.shape)
+prediction = np.reshape(output_tensor, (output_tensor.shape[0], -1))
+print("current_prediction_shape:", prediction.shape)
 
 
 

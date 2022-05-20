@@ -68,10 +68,10 @@ dbc.Container([
                                     style={"padding-right" : "3vh"}
                                 ),
                             ], className="text-center"),
-
+ 
                         ],align="center"),
                         dbc.Col([
-                            dbc.Button("calculate similarity for selected points", color="primary", id="remap_btn"),
+                            dbc.Button("map similarity for selected points", color="primary", id="remap_btn"),
                             
                             
                         ],align="center"),
