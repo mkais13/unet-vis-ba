@@ -1,6 +1,5 @@
  
 import gc
-from sre_constants import CATEGORY_UNI_NOT_LINEBREAK
 from keras.preprocessing.image import load_img 
 from keras.applications.vgg16 import preprocess_input 
 from keras.applications.vgg16 import VGG16 
