@@ -117,7 +117,7 @@ def map_data(path_to_3d_data, selected_run_ids):
  
 
     plotdatadf = pd.DataFrame(data_to_plot, columns=["x","y","run_id","batchsize","lossfunction","optimizer","topologyfactor","kernelinitializer"])
-    fig = px.scatter(plotdatadf,x="x",y="y",color="lossfunction", size="batchsize", symbol="optimizer", custom_data= ["run_id"])
+    fig = px.scatter(plotdatadf,x="x",y="y",color="lossfunction", size="batchsize", symbol="optimizer", custom_data= ["run_id"], hover_name="run_id", hover_data=["batchsize","lossfunction","optimizer","topologyfactor", "kernelinitializer"])
     for i in range(len(fig["data"])):
         legendname = fig["data"][i]["name"]
         print("legendname ", legendname)

@@ -340,25 +340,25 @@ def update_table(selected_runs_json, not_selected_runs_json, triggered_by_checkb
     #extract all unique hyperparameter options
     bs_value, lf_value, opt_value, tf_value, ki_value = "","","","",""
 
-  
 
     #extract current run-ids
-    selected_run_ids, not_selected_run_ids = extract_current_ids(selected_runs_json,not_selected_runs_json)
-    print("len(selected_run_ids) in update_table:", len(selected_run_ids))
-    if len(selected_run_ids) == 1:
-        selected_parameters = selected_run_ids[0].split("-")
-        if selected_parameters[0] == "truth":
-            bs_value = "20"
-            lf_value = "truth"
-            opt_value = "truth"
-            tf_value = "0.0"
-            ki_value = "truth"
-        else:
-            bs_value = selected_parameters[0][2:]
-            lf_value = selected_parameters[1][2:]
-            opt_value = selected_parameters[2][3:]
-            tf_value = selected_parameters[3][2:]
-            ki_value = selected_parameters[4][2:]
+    if selected_runs_json != None:
+        selected_run_ids, not_selected_run_ids = extract_current_ids(selected_runs_json,not_selected_runs_json)
+        print("len(selected_run_ids) in update_table:", len(selected_run_ids))
+        if len(selected_run_ids) == 1:
+            selected_parameters = selected_run_ids[0].split("-")
+            if selected_parameters[0] == "truth":
+                bs_value = "20"
+                lf_value = "truth"
+                opt_value = "truth"
+                tf_value = "0.0"
+                ki_value = "truth"
+            else:
+                bs_value = selected_parameters[0][2:]
+                lf_value = selected_parameters[1][2:]
+                opt_value = selected_parameters[2][3:]
+                tf_value = selected_parameters[3][2:]
+                ki_value = selected_parameters[4][2:]
 
     return bs_value, lf_value, opt_value, tf_value, ki_value, []
 
@@ -453,10 +453,10 @@ def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, not_selected_runs_
     #change similaritygraph from 2d to 3d or vice versa
     if(mapping_state != "remapped" or triggering_component == "reset_mapping_btn"):
         if slctd_dim == "3D":
-            similarity_fig = px.scatter_3d(data,x="x",y="y",z="z",color="lossfunction", size="batchsize", symbol="optimizer", custom_data= ["run_id"])
+            similarity_fig = px.scatter_3d(data,x="x",y="y",z="z",color="lossfunction", size="batchsize", symbol="optimizer", custom_data= ["run_id"], hover_name="run_id", hover_data=["batchsize","lossfunction","optimizer","topologyfactor", "kernelinitializer"])
             similarity_fig.update_layout(clickmode='event+select')
         else:
-            similarity_fig = px.scatter(data,x="x",y="y",color="lossfunction", size="batchsize", symbol="optimizer", custom_data= ["run_id"])
+            similarity_fig = px.scatter(data,x="x",y="y",color="lossfunction", size="batchsize", symbol="optimizer", custom_data= ["run_id"], hover_name="run_id", hover_data=["batchsize","lossfunction","optimizer","topologyfactor", "kernelinitializer"])
             similarity_fig.update_layout(clickmode='event+select')
 
     #if callback is called on page-load, change nothing
