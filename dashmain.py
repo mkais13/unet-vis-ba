@@ -378,15 +378,32 @@ def update_table_options(data):
     print("callback 'update_table_options' triggered by a change in 'current_dataframe'")
     current_df = pd.read_json(data, orient= "index")
     #get all unique options of the different hyperparameters
-    bs_options = current_df["batchsize"].unique()
+    #bs_options = current_df["batchsize"].unique()
+    bs_options = pd.unique(current_df["batchsize"]).tolist()
     lf_options = current_df["lossfunction"].unique()
     opt_options = current_df["optimizer"].unique()
     tf_options = current_df["topologyfactor"].unique().tolist()
-    for i in range(len(tf_options)):
-        tf_options[i] = str(tf_options[i])
-    # turn all tf-options into a strings, because of errors when passing floats to the dcc.Dropdown
     ki_options = current_df["kernelinitializer"].unique()
-    return bs_options,lf_options,opt_options,tf_options,ki_options
+    #convert numpy arrays to array of dicts
+    bs_options_obj = []
+    for i in range(len(bs_options)):
+        bs_options_obj.append({"label" : bs_options[i], "value": bs_options[i]})
+    lf_options_obj = []
+    for i in range(len(lf_options)):
+        lf_options_obj.append({"label" : lf_options[i], "value": lf_options[i]})
+    opt_options_obj = []
+    for i in range(len(opt_options)):
+        opt_options_obj.append({"label" : opt_options[i], "value": opt_options[i]})
+    tf_options_obj = []
+    for i in range(len(tf_options)):
+        # turn all tf-options into a strings, because of errors when passing floats to the dcc.Dropdown
+        tf_options_obj.append({"label" : tf_options[i], "value": str(tf_options[i])})
+    ki_options_obj = []
+    for i in range(len(ki_options)):
+        ki_options_obj.append({"label" : ki_options[i], "value": ki_options[i]})
+    
+    
+    return bs_options_obj,lf_options_obj,opt_options_obj,tf_options_obj,ki_options_obj
 
 
 
