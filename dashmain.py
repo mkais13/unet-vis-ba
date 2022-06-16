@@ -486,12 +486,11 @@ def update_graph(slctd_pic_id, slctd_dim, selected_runs_json, not_selected_runs_
         
         selected_counter = 0
         not_selected_counter = 0
-        template_array = np.zeros(len(similarity_fig["data"][0]["customdata"]))
         
 
         for j in range (len(similarity_fig["data"])):
             # go through selected runs
-            
+            template_array = np.zeros(len(similarity_fig["data"][j]["customdata"]))
             opacity_array = np.copy(template_array)
             color_array = []
             for i in range(len(selected_run_ids)):
@@ -713,7 +712,8 @@ def update_selected_runs(sim_selectedData, acc_selectedData, loss_selectedData, 
     #callback triggered by one of the dropdowns
     elif(triggering_component in dropdowns and not checklist_value):
         #in case of the dropdowns has no value selected
-        if(None in dropdown_values):
+        print("dropdown_values", dropdown_values)
+        if(len(dropdown_values) != 5):
             print("callback 'update_selected_runs' triggered by one of the dropdowns, BUT at least one value was 'None'")
             return dash.no_update, dash.no_update, dash.no_update
         else:
